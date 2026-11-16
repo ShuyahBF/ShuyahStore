@@ -1,3 +1,4 @@
+import { pictogrammeAutorisation } from "@/lib/permissions";
 import { useState } from "react";
 import { AlertTriangle, Copy, KeyRound, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/Toast";
@@ -56,8 +57,9 @@ export function Autorisations({ liste }) {
     <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
       {liste.map((a) => (
         <li key={a.nom} className={`flex items-start gap-2 rounded-lg px-2 py-1.5 ${a.niveau === "sensible" ? "bg-amber-50 text-amber-900" : "text-gray-700"}`} title={a.nom}>
-          {a.niveau === "sensible" ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" aria-hidden="true" />}
-          <span>{a.libelle}{a.niveau === "sensible" && <span className="sr-only"> (autorisation sensible)</span>}</span>
+          {/* Pictogramme représentatif de l'autorisation (SMS = bulle, appels = combiné, position = repère…) ; orange = sensible, bleu = normale */}
+          {(() => { const Picto = pictogrammeAutorisation(a.nom); return <Picto className={`mt-0.5 h-4 w-4 shrink-0 ${a.niveau === "sensible" ? "text-amber-700" : "text-sky-700"}`} aria-hidden="true" />; })()}
+          <span>{a.libelle}{a.niveau === "sensible" && <span className="ml-1 rounded bg-amber-200 px-1 text-xs font-semibold text-amber-900">sensible</span>}</span>
         </li>
       ))}
     </ul>
