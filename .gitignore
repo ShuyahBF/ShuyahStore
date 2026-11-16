@@ -1,0 +1,11 @@
+# Dépendances et fichiers produits (jamais dans le dépôt)
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+# Réglages locaux : peuvent contenir des secrets
+.env
+.env.*
