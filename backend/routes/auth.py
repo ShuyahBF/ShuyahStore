@@ -299,3 +299,52 @@ async def email_verifier(data: CodeEmail, user: dict = Depends(get_current_user)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Code incorrect.")
     await db.users.update_one({"id": user["id"]}, {"$set": {"email_verifie_le": iso(), "email_verifie_pour": fiche["email"]}, "$unset": {"email_verif": ""}})
     return {"ok": True}
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Jetons de dépôt (lot 8) : gestion par l'utilisateur (création, liste, révocation) — mot de passe redemandé
+# ----------------------------------------------------------------------------------------------------------------------
+JETONS_MAX = 5
+
+
+class NouveauJeton(BaseModel):
+    mot_de_passe: str = Field(min_length=1, max_length=128)
+    nom: str = Field(min_length=1, max_length=40)
+    jours: int = Field(365, ge=1, le=730)
+    publier_directement: bool = False          # réservé à l'administrateur : ses dépôts sans alerte sont publiés tout de suite
+
+
+@router.get("/jetons")
+async def jetons_liste(user: dict = Depends(get_current_user)):
+    lignes = await db.jetons_depot.find({"user_id": user["id"]}, {"_id": 0, "empreinte": 0}).sort("cree_le", 1).to_list(JETONS_MAX + 5)
+    return {"jetons": lignes, "maximum": JETONS_MAX, "peut_publier_directement": user.get("role") == "admin"}
+
+
+@router.post("/jetons", status_code=status.HTTP_201_CREATED)
+async def jeton_creer(data: NouveauJeton, user: dict = Depends(get_current_user)):
+    """Crée un jeton de dépôt. Le jeton complet n'est montré qu'UNE fois (ensuite seule son empreinte existe)."""
+    await _exiger_mot_de_passe(user, data.mot_de_passe)
+    if await db.jetons_depot.count_documents({"user_id": user["id"]}) >= JETONS_MAX:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"{JETONS_MAX} jetons au maximum : révoquez-en un d'abord.")
+    if data.publier_directement and user.get("role") != "admin":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "La publication directe est réservée à l'administrateur.")
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    from securite import PREFIXE_JETON, empreinte_jeton
+    jeton = PREFIXE_JETON + secrets.token_urlsafe(30)
+    doc = {"id": str(uuid.uuid4()), "user_id": user["id"], "nom": data.nom.strip(), "empreinte": empreinte_jeton(jeton), "debut": jeton[:8] + "…" + jeton[-4:],
+           "publier_directement": bool(data.publier_directement), "cree_le": iso(), "expire_le": (_dt.now(_tz.utc) + _td(days=data.jours)).isoformat(), "dernier_usage": None}
+    await db.jetons_depot.insert_one(doc.copy())
+    return {"jeton": jeton, **{k: doc[k] for k in ("id", "nom", "debut", "publier_directement", "cree_le", "expire_le")}}
+
+
+class Revocation(BaseModel):
+    mot_de_passe: str = Field(min_length=1, max_length=128)
+
+
+@router.post("/jetons/{jeton_id}/revoquer")
+async def jeton_revoquer(jeton_id: str, data: Revocation, user: dict = Depends(get_current_user)):
+    await _exiger_mot_de_passe(user, data.mot_de_passe)
+    res = await db.jetons_depot.delete_one({"id": jeton_id, "user_id": user["id"]})
+    if not res.deleted_count:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Jeton introuvable")
+    return {"ok": True}

@@ -135,3 +135,33 @@ async def noter_echec(cle: str) -> None:
 
 async def effacer_echecs(cle: str) -> None:
     await db.echecs_connexion.delete_many({"cle": cle})
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Jetons de dépôt (lot 8) : permettent à un OUTIL (script, compilation automatique, assistant) de déposer des APK sans connaître le mot de passe
+# ----------------------------------------------------------------------------------------------------------------------
+PREFIXE_JETON = "ssd_"
+
+
+def empreinte_jeton(jeton: str) -> str:
+    """Seule l'empreinte du jeton est gardée en base : une copie de la base ne permet pas de déposer en votre nom."""
+    import hashlib
+    return hashlib.sha256((get_settings().jwt_secret + "|jeton|" + jeton).encode()).hexdigest()
+
+
+async def utilisateur_ou_jeton_depot(request: Request) -> dict:
+    """Utilisateur de la session OU propriétaire d'un jeton de dépôt (en-tête « Authorization: Bearer ssd_… »).
+    Utilisé SEULEMENT par le dépôt d'APK et la lecture de ses propres applications : un jeton ne donne accès à rien d'autre.
+    Rend la fiche de l'utilisateur, avec `jeton_depot` (réglages du jeton) quand il a servi."""
+    entete = request.headers.get("authorization", "")
+    jeton = entete[7:].strip() if entete.lower().startswith("bearer ") else ""
+    if not jeton.startswith(PREFIXE_JETON):
+        return await get_current_user(request)
+    enreg = await db.jetons_depot.find_one({"empreinte": empreinte_jeton(jeton)}, SANS_ID)
+    if not enreg or (enreg.get("expire_le") and enreg["expire_le"] < datetime.now(timezone.utc).isoformat()):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Jeton de dépôt invalide ou expiré")
+    user = await db.users.find_one({"id": enreg["user_id"]}, SANS_ID)
+    if not user or user.get("desactive"):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Jeton de dépôt invalide ou expiré")
+    await db.jetons_depot.update_one({"empreinte": enreg["empreinte"]}, {"$set": {"dernier_usage": datetime.now(timezone.utc).isoformat()}})
+    return {**user, "jeton_depot": {k: enreg.get(k) for k in ("id", "nom", "publier_directement")}}
