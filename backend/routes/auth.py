@@ -18,6 +18,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
+import email_envoi
 import totp
 from config import get_settings
 from db import db
@@ -219,4 +220,82 @@ async def a2f_desactiver(data: Desactivation, user: dict = Depends(get_current_u
         await noter_echec(f"securite:{user['id']}")
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Code incorrect ou déjà utilisé")
     await db.users.update_one({"id": user["id"]}, {"$unset": {"a2f": "", "a2f_attente": ""}})
+    return {"ok": True}
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Vérification de l'adresse e-mail par un code (lot 6)
+# ----------------------------------------------------------------------------------------------------------------------
+# Un code à 6 chiffres est envoyé à l'adresse du compte, valable 15 minutes, 5 essais, un nouvel envoi invalide le précédent.
+# Limites anti-abus : 1 envoi par minute, 5 par jour et par compte. Seule l'empreinte du code est gardée (jamais le code lui-même).
+VALIDITE_CODE_MIN = 15
+ESSAIS_MAX = 5
+ENVOIS_PAR_JOUR = 5
+ATTENTE_RENVOI_S = 60
+
+
+def _empreinte_code(user_id: str, code: str) -> str:
+    return hashlib.sha256(f"{get_settings().jwt_secret}|email|{user_id}|{code}".encode()).hexdigest()
+
+
+def verification_obligatoire_pour_deposer() -> bool:
+    """Vrai si déposer une application exige une adresse vérifiée (réglage « auto » : seulement si l'envoi d'e-mails est configuré)."""
+    choix = (get_settings().email_verifie_pour_deposer or "auto").strip().lower()
+    if choix in ("oui", "true", "1"):
+        return True
+    if choix in ("non", "false", "0"):
+        return False
+    return email_envoi.configure()
+
+
+@router.get("/email/etat")
+async def email_etat(user: dict = Depends(get_current_user)):
+    return {"email": user["email"], "verifie": bool(user.get("email_verifie_le")) and user.get("email_verifie_pour") == user["email"],
+            "disponible": email_envoi.configure(), "obligatoire_pour_deposer": verification_obligatoire_pour_deposer()}
+
+
+@router.post("/email/envoyer-code")
+async def email_envoyer_code(user: dict = Depends(get_current_user)):
+    if not email_envoi.configure():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "L'envoi d'e-mails n'est pas encore activé sur ShuyahStore.")
+    fiche = await db.users.find_one({"id": user["id"]}, {"_id": 0}) or {}
+    if fiche.get("email_verifie_le") and fiche.get("email_verifie_pour") == fiche.get("email"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Votre adresse est déjà vérifiée.")
+    maintenant = time.time()
+    envois = [t for t in (fiche.get("email_envois") or []) if maintenant - t < 86400]
+    if envois and maintenant - envois[-1] < ATTENTE_RENVOI_S:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"Patientez {int(ATTENTE_RENVOI_S - (maintenant - envois[-1])) + 1} secondes avant de demander un nouveau code.")
+    if len(envois) >= ENVOIS_PAR_JOUR:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Trop de codes demandés aujourd'hui : réessayez demain.")
+    code = f"{secrets.randbelow(10**6):06d}"
+    texte = (f"Votre code de vérification ShuyahStore : {code}\n\nIl est valable {VALIDITE_CODE_MIN} minutes. "
+             "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : rien n'est modifié.")
+    html = (f"<p>Votre code de vérification <b>ShuyahStore</b> :</p><p style=\"font-size:28px;letter-spacing:6px\"><b>{code}</b></p>"
+            f"<p>Il est valable {VALIDITE_CODE_MIN} minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.</p>")
+    if not await email_envoi.envoyer(fiche["email"], f"Votre code ShuyahStore : {code}", texte, html):
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "L'e-mail n'a pas pu être envoyé : réessayez dans un instant.")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"email_envois": envois + [maintenant], "email_verif": {
+        "code_hash": _empreinte_code(user["id"], code), "expire_le": maintenant + VALIDITE_CODE_MIN * 60, "essais": 0, "email": fiche["email"]}}})
+    return {"ok": True, "validite_minutes": VALIDITE_CODE_MIN, "email_masque": re.sub(r"(?<=.).(?=[^@]*@)", "•", fiche["email"], count=max(len(fiche["email"].split("@")[0]) - 1, 0))}
+
+
+class CodeEmail(BaseModel):
+    code: str = Field(min_length=6, max_length=10)
+
+
+@router.post("/email/verifier")
+async def email_verifier(data: CodeEmail, user: dict = Depends(get_current_user)):
+    fiche = await db.users.find_one({"id": user["id"]}, {"_id": 0}) or {}
+    v = fiche.get("email_verif") or {}
+    if not v or v.get("email") != fiche.get("email"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Demandez d'abord un code.")
+    if time.time() > v.get("expire_le", 0):
+        raise HTTPException(status.HTTP_410_GONE, "Ce code a expiré : demandez-en un nouveau.")
+    if v.get("essais", 0) >= ESSAIS_MAX:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Trop d'essais : demandez un nouveau code.")
+    saisi = "".join(c for c in data.code if c.isdigit())
+    if not secrets.compare_digest(_empreinte_code(user["id"], saisi), v.get("code_hash", "")):
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"email_verif.essais": 1}})
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Code incorrect.")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"email_verifie_le": iso(), "email_verifie_pour": fiche["email"]}, "$unset": {"email_verif": ""}})
     return {"ok": True}

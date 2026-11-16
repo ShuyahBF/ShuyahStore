@@ -37,6 +37,17 @@ class Settings(BaseSettings):
     max_echecs_connexion: int = 10
     fenetre_echecs_minutes: int = 15
 
+    # --- Envoi d'e-mails (vérification de l'adresse des comptes). SECRETS à saisir par le propriétaire dans Render, jamais dans le dépôt. ---
+    # Sans SMTP_HOST, la vérification par code n'est pas proposée et rien n'est bloqué (un service d'e-mail absent ne pénalise jamais l'utilisateur honnête).
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""                       # adresse d'expédition (ex. « ShuyahStore <ne-pas-repondre@votre-domaine> »)
+    smtp_starttls: bool = True                # False pour le port 465 (SSL direct)
+    # Dépôt d'applications : « auto » = adresse vérifiée exigée SI l'envoi d'e-mails est configuré ; « oui » / « non » pour forcer
+    email_verifie_pour_deposer: str = "auto"
+
     # --- Limites ---
     limite_publique_par_minute: int = 60         # appels publics par minute et par adresse IP
     apk_taille_max_mo: int = 150                 # taille maximale d'un APK déposé

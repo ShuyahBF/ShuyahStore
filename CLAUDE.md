@@ -33,6 +33,10 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
     `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD` (clé permanente, jamais dans le dépôt). Adresses : `-PsiteUrl=…` et `-PapiUrl=…`.
   - Règle « APK livré à chaque livraison » : toute livraison qui touche `android/` ou le pont envoie l'APK release (`shuyahstore-X.Y.apk`, version + 1).
 
+- Vérification de l'e-mail (lot 6) : code à 6 chiffres envoyé par SMTP (`backend/email_envoi.py`, variables `SMTP_*` saisies par le propriétaire dans Render, jamais dans le dépôt).
+  Valable 15 min, 5 essais, 1 envoi / minute et 5 / jour ; seule l'empreinte du code est gardée. Réglage `EMAIL_VERIFIE_POUR_DEPOSER` (auto = exigée seulement si SMTP est configuré :
+  un service d'e-mail absent ne bloque jamais l'utilisateur honnête). La fiche d'une application montre « e-mail vérifié » du développeur.
+
 ## Règles propres à ShuyahStore (sécurité, règle 21)
 - Règles de qualité des APK (lot 5) : `backend/regles_qualite.py`, fonction pure testée. BLOQUANT (dépôt refusé avec explication) : version débogable, niveau cible
   Android < 23 (refusée par Android 14+), combinaison SMS + accessibilité + superposition d'écran. ALERTE (dépôt accepté, montrée au développeur ET à l'administrateur) :

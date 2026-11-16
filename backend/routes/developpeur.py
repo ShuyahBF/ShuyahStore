@@ -25,7 +25,8 @@ from config import get_settings
 from db import SANS_ID, db
 from outils import iso, sans_accents
 from routes.commun import app_ecran, certificat_debug, texte, version_ecran
-from securite import get_current_user
+from routes.auth import verification_obligatoire_pour_deposer
+from securite import get_current_user, utilisateur_public
 
 router = APIRouter(prefix="/dev", tags=["Développeur"])
 
@@ -51,6 +52,9 @@ async def deposer(fichier: UploadFile = File(...), nom: str = Form(""), resume: 
                   categorie: str = Form("autre"), nouveautes: str = Form(""), user: dict = Depends(get_current_user)):
     """Dépose un APK : nouvelle application (le nom est alors obligatoire) ou nouvelle version d'une application existante."""
     s = get_settings()
+    # 0. adresse e-mail vérifiée (lot 6) : exigée si l'envoi d'e-mails est configuré (réglage EMAIL_VERIFIE_POUR_DEPOSER)
+    if verification_obligatoire_pour_deposer() and not utilisateur_public(user).get("email_verifie"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Vérifiez d'abord votre adresse e-mail (page « Mon Compte ») : un code vous y est envoyé. Cela montre aux utilisateurs que vous êtes joignable.")
     # 1. limite de dépôts par jour (anti-abus)
     if await db.versions.count_documents({"depose_par": user["id"], "jour": date.today().isoformat()}) >= s.depots_par_jour:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"Limite atteinte : {s.depots_par_jour} dépôts par jour")

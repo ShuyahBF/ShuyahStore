@@ -70,7 +70,9 @@ async def detail(reference: str, user: Optional[dict] = Depends(utilisateur_facu
         db.avis.find({"app_id": a["id"]}, SANS_ID).sort("cree_le", -1).to_list(50),
         db.avis.find_one({"app_id": a["id"], "user_id": user["id"]}, SANS_ID) if user else asyncio.sleep(0),
         db.telechargements.find_one({"app_id": a["id"], "user_id": user["id"]}, {"_id": 1}) if user else asyncio.sleep(0))
-    return {"app": app_ecran(a, detail=True), "versions": [version_ecran(v) for v in versions],
+    dev = await db.users.find_one({"id": a.get("developpeur_id")}, {"_id": 0, "email": 1, "email_verifie_le": 1, "email_verifie_pour": 1})
+    developpeur_verifie = bool(dev and dev.get("email_verifie_le") and dev.get("email_verifie_pour") == dev.get("email"))
+    return {"app": {**app_ecran(a, detail=True), "developpeur_verifie": developpeur_verifie}, "versions": [version_ecran(v) for v in versions],
             "avis": [{k: x.get(k) for k in ("user_id", "nom", "note", "texte", "cree_le", "a_telecharge", "reponse", "reponse_le")} for x in avis],
             "mon_avis": {k: mien.get(k) for k in ("note", "texte")} if mien else None,
             "peut_donner_avis": bool(user and user["id"] != a.get("developpeur_id")), "a_telecharge": bool(telecharge), "proprietaire": proprietaire}
