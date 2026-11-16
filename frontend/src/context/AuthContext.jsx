@@ -10,9 +10,11 @@ export function AuthProvider({ children }) {
   useEffect(() => { apiClient.get("/auth/moi").then((r) => setUser(r.data)).catch(() => setUser(null)); }, []);
   // Connexion. Si la double authentification est activée et qu'aucun code n'est fourni, le serveur répond « a2f_requise » :
   // l'écran demande alors le code (aucune session n'est encore ouverte).
-  const connecter = useCallback(async (email, motDePasse, code = "") => {
-    const { data } = await apiClient.post("/auth/connexion", { email, mot_de_passe: motDePasse, code });
+  // Si le compte a un numéro WhatsApp vérifié, la demande de connexion envoie un code par WhatsApp : « wa_requis » (aucune session n'est ouverte).
+  const connecter = useCallback(async (email, motDePasse, code = "", codeWa = "") => {
+    const { data } = await apiClient.post("/auth/connexion", { email, mot_de_passe: motDePasse, code, code_wa: codeWa });
     if (data.a2f_requise) return { a2f_requise: true };
+    if (data.wa_requis) return { wa_requis: true, numero_masque: data.numero_masque, validite_minutes: data.validite_minutes };
     setUser(data.user); return data.user;
   }, []);
   /** Connexion par clé d'accès (empreinte, visage ou code du téléphone) : déjà une authentification forte, aucun second code n'est demandé. */
@@ -25,9 +27,9 @@ export function AuthProvider({ children }) {
   }, []);
   /** Relit la fiche du compte (après un réglage de sécurité). */
   const actualiser = useCallback(async () => { const { data } = await apiClient.get("/auth/moi"); setUser(data); return data; }, []);
-  const inscrire = useCallback(async (nom, email, motDePasse) => {
-    const { data } = await apiClient.post("/auth/inscription", { nom, email, mot_de_passe: motDePasse });
-    setUser(data.user); return data.user;
+  const inscrire = useCallback(async (nom, email, motDePasse, whatsapp) => {
+    const { data } = await apiClient.post("/auth/inscription", { nom, email, mot_de_passe: motDePasse, whatsapp });
+    setUser(data.user); return { ...data.user, whatsapp_code_envoye: data.whatsapp_code_envoye };
   }, []);
   const deconnecter = useCallback(async () => { try { await apiClient.post("/auth/deconnexion"); } finally { setUser(null); } }, []);
   const valeur = useMemo(() => ({ user, connecter, connecterParCleAcces, inscrire, deconnecter, actualiser }), [user, connecter, connecterParCleAcces, inscrire, deconnecter, actualiser]);

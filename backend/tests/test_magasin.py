@@ -211,8 +211,8 @@ def test_signalement_ouvert_a_tous_une_fois_par_jour_puis_traite(client, compte,
 def test_comptes_connexion_et_essais_limites(client, compte):
     fiche, h = compte()
     assert client.get("/api/auth/moi", headers=h).json()["email"] == fiche["email"] and "password_hash" not in fiche
-    assert client.post("/api/auth/inscription", json={"nom": "Double", "email": fiche["email"], "mot_de_passe": "motdepasse-123"}).status_code == 409
-    assert client.post("/api/auth/inscription", json={"nom": "Court", "email": "court@gmail.com", "mot_de_passe": "court"}).status_code == 422
+    assert client.post("/api/auth/inscription", json={"nom": "Double", "email": fiche["email"], "mot_de_passe": "motdepasse-123", "whatsapp": "+22670999999"}).status_code == 409
+    assert client.post("/api/auth/inscription", json={"nom": "Court", "email": "court@gmail.com", "mot_de_passe": "court", "whatsapp": "+22670999998"}).status_code == 422
     assert client.post("/api/auth/connexion", json={"email": fiche["email"], "mot_de_passe": "mauvais"}).status_code == 401
     assert client.post("/api/auth/connexion", json={"email": fiche["email"].upper(), "mot_de_passe": "motdepasse-123"}).status_code == 200
     client.cookies.clear()

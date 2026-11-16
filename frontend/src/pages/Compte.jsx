@@ -4,6 +4,7 @@ import { AlertTriangle, Copy, Download, Fingerprint, LogIn, ShieldCheck, ShieldO
 import ChampMotDePasse from "@/components/ChampMotDePasse";
 import ClesAcces from "@/components/ClesAcces";
 import JetonsDepot from "@/components/JetonsDepot";
+import NumeroWhatsApp from "@/components/NumeroWhatsApp";
 import VerificationEmail from "@/components/VerificationEmail";
 import { Patientez } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -96,6 +97,8 @@ export default function Compte() {
         <p><span className="text-gray-600">E-mail :</span> <b className="text-primary">{user.email}</b> <span className="text-xs text-gray-500">(déclaré, non vérifié)</span></p>
         <p><span className="text-gray-600">Compte créé le :</span> <span className="tabular-nums">{dateFr(user.cree_le)}</span></p>
       </section>
+
+      <NumeroWhatsApp />
 
       <VerificationEmail />
 
