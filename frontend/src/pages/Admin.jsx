@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, BadgeCheck, Ban, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Search, X, XCircle } from "lucide-react";
-import BlocSignature, { Autorisations } from "@/components/BlocSignature";
+import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import { IconeApp, Patientez, Recommandee, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
@@ -101,7 +101,7 @@ export default function Admin() {
                     <td><span className="tabular-nums">{v.version_nom || v.version_code}</span> {v.premiere ? <span className="badge bg-purple-100 text-purple-900">Nouvelle application</span> : <span className="badge bg-blue-100 text-blue-900">Mise à jour</span>}</td>
                     <td className="text-right tabular-nums">{taille(v.taille)}</td>
                     <td className="tabular-nums">{dateHeure(v.cree_le)}</td>
-                    <td className="space-y-1">{v.certificat_debug && <span className="badge bg-amber-100 text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Clé de test</span>}{sensibles > 0 && <span className="badge bg-amber-100 text-amber-900">{sensibles} autorisation{sensibles > 1 ? "s" : ""} sensible{sensibles > 1 ? "s" : ""}</span>}{!v.certificat_debug && !sensibles && <span className="text-xs text-gray-500">—</span>}</td>
+                    <td className="space-y-1">{v.certificat_debug && <span className="badge bg-amber-100 text-amber-900"><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />Clé de test</span>}{(v.alertes || []).filter((a) => a.code !== "certificat_test").length > 0 && <span className="badge bg-red-100 text-red-900">{(v.alertes || []).filter((a) => a.code !== "certificat_test").length} alerte(s)</span>}{sensibles > 0 && <span className="badge bg-amber-100 text-amber-900">{sensibles} autorisation{sensibles > 1 ? "s" : ""} sensible{sensibles > 1 ? "s" : ""}</span>}{!v.certificat_debug && !sensibles && !(v.alertes || []).length && <span className="text-xs text-gray-500">—</span>}</td>
                     <td><button type="button" className="btn-primary btn-sm" onClick={() => { setExamen(v); setMotif(""); }}><Search className="h-4 w-4" aria-hidden="true" />Examiner</button></td>
                   </tr>);
               })}</tbody>
@@ -182,6 +182,7 @@ export default function Admin() {
             {examen.app.description && <p className="max-h-32 overflow-y-auto whitespace-pre-line rounded-lg bg-gray-50 p-2 text-gray-700">{examen.app.description}</p>}
             {examen.nouveautes && <p className="rounded-lg bg-ocre-pale p-2"><b className="text-ocre">Nouveautés :</b> {examen.nouveautes}</p>}
             <BlocSignature version={examen} app={examen.app} />
+            <Alertes liste={examen.alertes} />
             <div><p className="mb-1 font-semibold">Autorisations demandées</p><Autorisations liste={examen.autorisations} /></div>
             <a href={lienApk(examen.id)} className="btn-outline btn-sm"><Download className="h-4 w-4 text-ocre" aria-hidden="true" />Télécharger l'APK pour l'essayer</a>
             <div><label className="label" htmlFor="ex-motif">Motif (obligatoire pour un refus, communiqué au développeur)</label>

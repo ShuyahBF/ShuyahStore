@@ -63,3 +63,14 @@ export function Autorisations({ liste }) {
     </ul>
   );
 }
+
+/** Alertes de qualité relevées par ShuyahStore sur une version (lot 5) : elles AIDENT la décision, elles ne décident pas seules. */
+export function Alertes({ liste, titre = "Points d'attention relevés par ShuyahStore" }) {
+  if (!liste?.length) return null;
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" data-testid="alertes">
+      <p className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />{titre} ({liste.length})</p>
+      <ul className="mt-1 list-disc space-y-1 pl-5">{liste.map((a) => <li key={a.code}>{a.message}</li>)}</ul>
+    </div>
+  );
+}

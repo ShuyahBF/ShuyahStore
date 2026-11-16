@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, ExternalLink, ImageUp, KeyRound, LogIn, Pencil, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
-import BlocSignature, { Autorisations } from "@/components/BlocSignature";
+import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import CleSignature from "@/components/CleSignature";
 import { IconeApp, Patientez, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -169,6 +169,7 @@ export default function Developpeur() {
             <p><b>{resultat.app.nom}</b> · <code className="font-mono text-primary">{resultat.app.paquet}</code> · version <b>{resultat.version.version_nom || resultat.version.version_code}</b> (n° {resultat.version.version_code}) · {taille(resultat.version.taille)} · {resultat.version.android_minimum}</p>
             <BlocSignature version={resultat.version} app={resultat.app} />
             {resultat.certificat_debug && <p className="flex items-start gap-2 rounded-lg bg-amber-100 p-3 text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Conseil : signez vos versions publiques avec une clé d'éditeur à vous (conservée précieusement), pas avec la clé de débogage : sinon vous ne pourrez pas mettre l'application à jour depuis un autre ordinateur.</span></p>}
+            <Alertes liste={resultat.version.alertes} />
             <div><p className="mb-1 font-semibold">Autorisations demandées</p><Autorisations liste={resultat.version.autorisations} /></div>
             <p className="rounded-lg bg-blue-50 p-3">Prochaine étape : ShuyahStore examine cette version. Vous verrez « Publiée » ou le motif du refus dans votre tableau.</p>
             <button type="button" className="btn-outline" onClick={() => setResultat(null)}><X className="h-4 w-4" aria-hidden="true" />Fermer</button>
