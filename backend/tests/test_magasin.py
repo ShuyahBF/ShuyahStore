@@ -261,3 +261,25 @@ def test_installations_ancrees_sur_le_telechargement_vu_par_le_serveur(client, c
     assert ev(appareil=APPAREIL, type="installation", version_id=v["id"]).json()["compte"] is False
     assert compteurs() == {"installations": 1, "installations_actives": 1, "desinstallations": 1}
     assert ev(appareil=APPAREIL, type="desinstallation", paquet="paquet.inconnu").status_code == 404
+
+
+def test_administrateur_retire_une_version_publiee(client, compte, admin):
+    """Retirer UNE version publiée : motif exigé, version courante recalculée, fichier supprimé, jamais la dernière version publiée."""
+    _, h, app, v1, _ = application_publiee(client, compte, admin, code=1)
+    r2 = deposer(client, h, fabriquer(paquet=app["paquet"], code=2))
+    publier(client, admin, r2.json()["version"]["id"])
+    v2 = r2.json()["version"]
+    # sans motif : refusé ; version inconnue : introuvable
+    assert client.post(f"/api/admin/versions/{v1['id']}/retirer", headers=admin, json={"motif": ""}).status_code == 422
+    assert client.post("/api/admin/versions/inconnue/retirer", headers=admin, json={"motif": "essai de retrait"}).status_code == 404
+    # retirer l'ancienne version : la courante (v2) ne change pas, l'ancienne n'est plus téléchargeable
+    assert client.post(f"/api/admin/versions/{v1['id']}/retirer", headers=admin, json={"motif": "clé de test"}).status_code == 200
+    assert client.get(f"/api/apps/{app['paquet']}").json()["app"]["version_courante"]["version_code"] == 2
+    assert client.get(f"/api/versions/{v1['id']}/apk").status_code in (403, 404, 409)
+    liste = client.get(f"/api/admin/apps/{app['id']}/versions", headers=admin).json()["versions"]
+    assert {x["version_code"]: x["statut"] for x in liste} == {1: "retiree", 2: "publiee"}
+    # la dernière version publiée ne se retire pas ; une version retirée ne se retire pas deux fois
+    assert client.post(f"/api/admin/versions/{v2['id']}/retirer", headers=admin, json={"motif": "essai de retrait"}).status_code == 409
+    assert client.post(f"/api/admin/versions/{v1['id']}/retirer", headers=admin, json={"motif": "encore une fois"}).status_code == 409
+    # un développeur ne peut pas utiliser cette route
+    assert client.post(f"/api/admin/versions/{v2['id']}/retirer", headers=h, json={"motif": "essai de retrait"}).status_code in (401, 403)

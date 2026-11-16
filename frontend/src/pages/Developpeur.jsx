@@ -213,6 +213,7 @@ export default function Developpeur() {
                 <p className="flex flex-wrap items-center gap-2"><b className="text-primary">{v.version_nom || v.version_code}</b><span className="text-xs text-gray-500">n° {v.version_code} · {taille(v.taille)} · déposée le {dateFr(v.cree_le)}</span><Statut code={v.statut} />
                   {v.statut === "en_attente" && <button type="button" className="btn-outline btn-sm ml-auto border-red-300 text-red-800" onClick={() => retirerVersion(v)}><Trash2 className="h-4 w-4" aria-hidden="true" />Retirer</button>}</p>
                 {v.motif_refus && <p className="rounded-lg bg-red-50 p-2 text-red-900">Motif du refus : {v.motif_refus}</p>}
+                {v.motif_retrait && <p className="rounded-lg bg-gray-100 p-2 text-gray-800">Version retirée par l'administrateur. Motif : {v.motif_retrait}</p>}
                 <BlocSignature version={v} app={detailCourant} compact />
               </div>))}
             <button type="button" className="btn-outline" onClick={() => setDetail(null)}><X className="h-4 w-4" aria-hidden="true" />Fermer</button>

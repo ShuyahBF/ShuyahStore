@@ -36,4 +36,5 @@ export const STATUTS = {
   refusee: { libelle: "Refusée", classe: "bg-red-100 text-red-900" },
   suspendue: { libelle: "Suspendue", classe: "bg-red-100 text-red-900" },
   archivee: { libelle: "Archivée", classe: "bg-gray-200 text-gray-800" },
+  retiree: { libelle: "Retirée", classe: "bg-gray-200 text-gray-800" },
 };
