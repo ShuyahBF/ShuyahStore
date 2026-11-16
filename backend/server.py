@@ -14,11 +14,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import mesures
 import presence_sawali
+import statistiques
 import version_plateforme
 from config import get_settings
 from db import db, ensure_indexes
 from outils import adresse_ip, iso
-from routes import admin, auth, avis, catalogue, developpeur, passkeys
+from routes import admin, auth, avis, catalogue, developpeur, passkeys, statistiques as routes_statistiques
 from securite import hash_password
 
 settings = get_settings()
@@ -32,7 +33,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.frontend_origins, allo
 app.middleware("http")(mesures.mesurer)
 
 api = APIRouter(prefix="/api")
-for module in (auth, passkeys, catalogue, avis, developpeur, admin):
+for module in (auth, passkeys, catalogue, avis, developpeur, admin, routes_statistiques):
     api.include_router(module.router)
 
 
@@ -74,3 +75,5 @@ async def au_demarrage():
     await ensure_admin()
     # Signal de présence auprès de SAWALI (règle 4) : au démarrage puis toutes les 5 minutes, en tâche de fond, jamais bloquant
     _taches_fond.add(asyncio.get_running_loop().create_task(presence_sawali.boucle_presence()))
+    # Rapport hebdomadaire des statistiques aux développeurs (le lundi, une seule fois par semaine et par développeur), en tâche de fond
+    _taches_fond.add(asyncio.get_running_loop().create_task(statistiques.boucle_rapports()))

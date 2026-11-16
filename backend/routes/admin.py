@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 import mesures
+import statistiques
 import stockage
 import version_plateforme
 from db import SANS_ID, db
@@ -104,6 +105,15 @@ async def publier_version(v: dict, a: dict) -> None:
                                                                "version_courante": courante, "maj_le": moment}})
     # Les fichiers des versions publiées les plus anciennes sont libérés (la fiche de la version reste, marquée « archivée »)
     await archiver_anciennes(a["id"], await versions_conservees())
+
+
+@router.get("/analyses")
+async def analyses():
+    """Analyses de TOUTES les applications : rythme et ancienneté des mises à jour, rapidité de validation, avis, désinstallations, points d'attention."""
+    apps = await db.applications.find({}, SANS_ID).to_list(1000)
+    series = await asyncio.gather(*[statistiques.serie_quotidienne(a["id"]) for a in apps])
+    bilans = await asyncio.gather(*[statistiques.analyser_app(a, s) for a, s in zip(apps, series)])
+    return {"apps": [{**b, "developpeur": a.get("nom_developpeur")} for a, b in zip(apps, bilans)]}
 
 
 @router.get("/apps/{app_id}/versions")

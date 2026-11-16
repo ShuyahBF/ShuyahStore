@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ExternalLink, ImageDown, ImageUp, KeyRound, LogIn, Pencil, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, BarChart3, ExternalLink, ImageDown, ImageUp, KeyRound, LogIn, Pencil, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
 import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import CleSignature from "@/components/CleSignature";
 import { IconeApp, Patientez, Statut, ThTri } from "@/components/Communs";
@@ -94,6 +94,7 @@ export default function Developpeur() {
         <div><h1 className="text-2xl font-bold">Espace développeur</h1><p className="text-sm text-gray-600">Vos applications, leurs versions et l'état de leur validation.</p></div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn-outline" onClick={() => charger(true)}><RefreshCw className="h-4 w-4 text-primary" aria-hidden="true" />Actualiser</button>
+          <Link to="/statistiques" className="btn-outline"><BarChart3 className="h-4 w-4 text-sky-700" aria-hidden="true" />Statistiques</Link>
           <CleSignature nomParDefaut={user.nom} />
           <button type="button" className="btn-primary" onClick={() => setDepot({ app: null, categorie: "autre" })} data-testid="deposer"><Upload className="h-4 w-4" aria-hidden="true" />Déposer une application</button>
         </div>

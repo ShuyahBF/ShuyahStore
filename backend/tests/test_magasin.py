@@ -328,3 +328,50 @@ def test_gonflage_des_telechargements_ecarte(client, compte, admin):
     for i in range(2, 7):
         assert client.get(lien, headers={"X-Appareil": f"00000000-0000-4000-8000-00000000010{i}"}).status_code == 200
     assert lu() == 3 and ecartes() == 4                                                 # 1 reprise + 2 appareils comptés ; robot + 3 excès écartés
+
+
+def test_statistiques_et_analyses(client, compte, admin):
+    """Séries sur 28 jours, tendance, analyses (rythme des mises à jour) pour le développeur et pour l'administrateur ; rapport HTML sans script."""
+    import statistiques
+    dev, h, app, v, _ = application_publiee(client, compte, admin, code=1)
+    client.get(f"/api/versions/{v['id']}/apk")                                              # un téléchargement compté
+    publier(client, admin, deposer(client, h, fabriquer(paquet=app["paquet"], code=2)).json()["version"]["id"])
+    s = client.get("/api/dev/stats", headers=h).json()
+    a = s["apps"][0]
+    assert a["telechargements"] == 1 and sum(a["serie"]["telechargements"]) == 1 and len(a["serie"]["jours"]) == 28
+    assert a["nb_versions_publiees"] == 2 and a["jours_depuis_maj"] == 0 and a["intervalle_moyen_jours"] is not None
+    assert a["tendance_telechargements"]["semaine"] == 1 and s["stats_hebdo"] is True
+    # préférence du rapport hebdomadaire
+    assert client.put("/api/dev/stats/preferences", headers=h, json={"actif": False}).json() == {"stats_hebdo": False}
+    # envoi immédiat : refusé proprement quand la messagerie n'est pas configurée
+    assert client.post("/api/dev/stats/envoyer-moi", headers=h).status_code == 503
+    # administrateur : analyses de toutes les applications ; un développeur n'y a pas accès
+    tout = client.get("/api/admin/analyses", headers=admin).json()["apps"]
+    assert any(x["paquet"] == app["paquet"] and x["developpeur"] for x in tout)
+    assert client.get("/api/admin/analyses", headers=h).status_code in (401, 403)
+    # rapport : HTML sans script, texte échappé
+    bilan = (tout[0], {"jours": ["2026-01-01"], "telechargements": [3], "installations": [1], "desinstallations": [0]})
+    bilan[0]["nom"] = "<script>alert(1)</script>"
+    texte, corps = statistiques.rapport_html("BADINI <b>Awa</b>", [bilan], "Semaine test", "https://exemple.org")
+    assert "<script" not in corps and "&lt;script&gt;" in corps and "BADINI &lt;b&gt;Awa" in corps
+
+
+def test_rapport_hebdomadaire_envoye_une_seule_fois_par_semaine(client, compte, admin, monkeypatch):
+    """Messagerie simulée : un rapport par développeur et par semaine, jamais deux ; un développeur qui l'a désactivé n'en reçoit pas."""
+    import asyncio
+    from datetime import date
+
+    import email_envoi
+    import statistiques
+    dev, h, app, v, _ = application_publiee(client, compte, admin, code=1)
+    envoyes = []
+
+    async def faux_envoi(destinataire, sujet, texte, html=""):
+        envoyes.append((destinataire, sujet))
+        return True
+    monkeypatch.setattr(email_envoi, "configure", lambda: True)
+    monkeypatch.setattr(email_envoi, "envoyer", faux_envoi)
+    lundi = date(2026, 11, 16)
+    assert asyncio.run(statistiques.envoyer_rapports_de_la_semaine(lundi)) >= 1
+    assert asyncio.run(statistiques.envoyer_rapports_de_la_semaine(lundi)) == 0           # déjà parti cette semaine
+    assert any("votre semaine" in sujet for _, sujet in envoyes)
