@@ -144,3 +144,39 @@ def test_envoi_de_document_pdf_signe_par_liluvine(liluvine):
     assert media["type"] == "document" and media["mime"] == "application/pdf" and media["nom_fichier"] == "rapport.pdf" and media["contenu_base64"]
     assert asyncio.run(liluvine_wa.envoyer_whatsapp("+22670123456", "x", document=b"0" * (11 * 1024 * 1024)))["ok"] is False     # > 10 Mo refusé localement
     assert asyncio.run(liluvine_wa.envoyer_whatsapp("abc", "x"))["ok"] is False
+
+
+def test_rapport_pdf_telechargeable_et_envoye_par_whatsapp(client, compte, admin, liluvine):
+    """Le rapport de statistiques est un vrai PDF : téléchargeable, simulé vers l'administrateur et envoyé chaque semaine sur le WhatsApp vérifié."""
+    import asyncio
+    import base64
+    from datetime import date
+
+    import statistiques
+    from db import db
+    from test_magasin import application_publiee
+    dev, h, app, _, _ = application_publiee(client, compte, admin, code=1)
+    # 1. PDF à télécharger (développeur : le sien ; administrateur : celui d'une application)
+    r = client.get("/api/dev/stats/pdf", headers=h)
+    assert r.status_code == 200 and r.content.startswith(b"%PDF") and r.headers["content-type"] == "application/pdf"
+    r = client.get(f"/api/admin/apps/{app['id']}/statistiques.pdf", headers=admin)
+    assert r.status_code == 200 and r.content.startswith(b"%PDF")
+    assert client.get(f"/api/admin/apps/{app['id']}/statistiques.pdf", headers=h).status_code in (401, 403)
+    # 2. simulation : sans numéro vérifié pour l'administrateur, rien ne part sur WhatsApp et la raison est dite
+    a = asyncio.run(db.applications.find_one({"id": app["id"]}, {"_id": 0}))
+    deja = len(liluvine)                                                   # (le code de vérification du compte de test est déjà parti)
+    sim = asyncio.run(statistiques.simuler_rapport(a, {"email": "", "nom": "Admin"}))
+    assert sim["envoye_whatsapp"] is False and "vérifié" in sim["erreur_whatsapp"] and len(liluvine) == deja
+    admin_verifie = {"email": "", "nom": "Admin", "whatsapp": "+22670000001", "whatsapp_verifie_pour": "+22670000001"}
+    sim = asyncio.run(statistiques.simuler_rapport(a, admin_verifie))
+    assert sim["envoye_whatsapp"] is True and liluvine[-1]["to"] == "+22670000001" and liluvine[-1]["message"].startswith("[SIMULATION]")
+    assert base64.b64decode(liluvine[-1]["media"]["contenu_base64"]).startswith(b"%PDF")
+    # 3. envoi hebdomadaire : seulement au numéro VÉRIFIÉ du développeur, une fois par semaine
+    avant = len(liluvine)
+    assert asyncio.run(statistiques.envoyer_rapports_de_la_semaine(date(2026, 11, 23))) == 0           # numéro non vérifié : rien
+    assert len(liluvine) == avant
+    asyncio.run(db.users.update_one({"id": dev["id"]}, {"$set": {"whatsapp": "+22670001234", "whatsapp_verifie_pour": "+22670001234"}}))
+    assert asyncio.run(statistiques.envoyer_rapports_de_la_semaine(date(2026, 11, 30))) >= 1
+    envoi = [m for m in liluvine[avant:] if m["to"] == "+22670001234"][-1]
+    assert envoi["media"]["nom_fichier"].endswith(".pdf") and base64.b64decode(envoi["media"]["contenu_base64"]).startswith(b"%PDF")
+    assert asyncio.run(statistiques.envoyer_rapports_de_la_semaine(date(2026, 11, 30))) == 0           # déjà envoyé cette semaine

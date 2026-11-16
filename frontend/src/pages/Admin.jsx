@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, BadgeCheck, Ban, BarChart3, Send, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Save, Search, ShieldAlert, Trash2, X, XCircle } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Ban, BarChart3, FileDown, Send, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Save, Search, ShieldAlert, Trash2, X, XCircle } from "lucide-react";
 import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import { IconeApp, Patientez, Recommandee, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -96,9 +96,17 @@ export default function Admin() {
   // Simule en un clic l'envoi des statistiques d'une application : envoyé à l'administrateur seulement, aperçu affiché
   const simulerStatistiques = async (a) => {
     toast.info(`Simulation des statistiques de « ${a.nom} » en cours…`);
-    try { const r = await apiClient.post(`/admin/apps/${a.id}/simuler-statistiques`); setApercu({ nom: a.nom, ...r.data });
-      toast.succes(r.data.envoye ? "Rapport simulé envoyé à votre adresse e-mail" : "Aperçu prêt (l'envoi d'e-mails n'est pas configuré : rien n'est parti)"); }
+    try { const r = await apiClient.post(`/admin/apps/${a.id}/simuler-statistiques`); setApercu({ nom: a.nom, id: a.id, paquet: a.paquet, ...r.data });
+      toast.succes(r.data.envoye_whatsapp ? "Rapport simulé envoyé en PDF sur votre WhatsApp" : r.data.envoye ? "Rapport simulé envoyé à votre adresse e-mail" : "Aperçu prêt (aucun envoi : voir le détail dans la fenêtre)"); }
     catch (err) { toast.erreur(messageErreur(err, "Simulation impossible")); }
+  };
+  // Télécharge le PDF des statistiques d'une application (même contenu que celui envoyé sur WhatsApp)
+  const telechargerPdf = async (a) => {
+    toast.info("Préparation du PDF en cours…");
+    try { const r = await apiClient.get(`/admin/apps/${a.id}/statistiques.pdf`, { responseType: "blob" });
+      const lien = document.createElement("a"); lien.href = URL.createObjectURL(r.data); lien.download = `statistiques-${a.paquet}.pdf`; lien.click(); URL.revokeObjectURL(lien.href);
+      toast.succes("PDF téléchargé"); }
+    catch (err) { toast.erreur(messageErreur(err, "PDF indisponible")); }
   };
   const traiter = async (s) => {
     toast.info("Clôture du signalement en cours…");
@@ -280,9 +288,15 @@ export default function Admin() {
       <Modal ouvert={!!apercu} titre={`Simulation : statistiques de « ${apercu?.nom || ""} »`} onFermer={() => setApercu(null)} large>
         {apercu && (
           <div className="space-y-3 text-sm">
-            <p className={`rounded-lg p-2 ${apercu.envoye ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900"}`}>{apercu.envoye ? "Ce rapport a été envoyé à votre adresse e-mail (vous seul l'avez reçu)." : "Aucun e-mail n'est parti : l'envoi n'est pas configuré sur ce serveur. Voici l'aperçu."}</p>
+            <ul className="space-y-1">
+              <li className={`rounded-lg p-2 ${apercu.envoye_whatsapp ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900"}`}><b>WhatsApp (PDF) :</b> {apercu.envoye_whatsapp ? "envoyé sur votre numéro vérifié (vous seul l'avez reçu)." : `non envoyé. ${apercu.erreur_whatsapp || ""}`}</li>
+              <li className={`rounded-lg p-2 ${apercu.envoye ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900"}`}><b>E-mail :</b> {apercu.envoye ? "envoyé à votre adresse (vous seul l'avez reçu)." : "non envoyé (l'envoi d'e-mails n'est pas configuré sur ce serveur)."}</li>
+            </ul>
             <iframe title="Aperçu du rapport" sandbox="" srcDoc={apercu.html} className="h-[28rem] w-full rounded-lg border border-gray-200 bg-white" />
-            <button type="button" className="btn-outline" onClick={() => setApercu(null)}><X className="h-4 w-4" aria-hidden="true" />Fermer</button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn-bleu" onClick={() => telechargerPdf(apercu)}><FileDown className="h-4 w-4" aria-hidden="true" />Télécharger le PDF</button>
+              <button type="button" className="btn-outline" onClick={() => setApercu(null)}><X className="h-4 w-4" aria-hidden="true" />Fermer</button>
+            </div>
           </div>)}
       </Modal>
 
