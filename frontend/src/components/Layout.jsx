@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Code2, FileSearch, LayoutGrid, LogIn, LogOut, ShieldCheck, Smartphone, Store, UserRound } from "lucide-react";
+import { ExigerWhatsApp } from "@/components/NumeroWhatsApp";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/Toast";
 import { apiClient } from "@/lib/api";
@@ -59,6 +60,7 @@ export default function Layout() {
         <div className="h-1 bg-gradient-to-r from-ocre via-ocre-clair to-emerald-500" aria-hidden="true" />
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6"><Outlet /></main>
+      <ExigerWhatsApp />
       <footer className="border-t border-gray-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs text-gray-600">
           <span>ShuyahStore — le magasin d'applications africain. Aucune commission, aucun compte exigé pour télécharger.</span>

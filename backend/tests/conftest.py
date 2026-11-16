@@ -31,7 +31,7 @@ def compte(client):
     """Fabrique de comptes neufs : compte() rend (fiche, en-têtes)."""
     def creer(nom="BADINI Awa"):
         _compteur["n"] += 1
-        r = client.post("/api/auth/inscription", json={"nom": nom, "email": f"awa.badini{_compteur['n']}@gmail.com", "mot_de_passe": "motdepasse-123"})
+        r = client.post("/api/auth/inscription", json={"nom": nom, "email": f"awa.badini{_compteur['n']}@gmail.com", "mot_de_passe": "motdepasse-123", "whatsapp": f"+2267000{_compteur['n']:04d}"})
         assert r.status_code == 201, r.text
         client.cookies.clear()             # les tests s'authentifient par jeton « Bearer »
         return r.json()["user"], _entetes(r)

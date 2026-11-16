@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = ""                       # adresse d'expédition (ex. « ShuyahStore <ne-pas-repondre@votre-domaine> »)
     smtp_starttls: bool = True                # False pour le port 465 (SSL direct)
+    # --- WhatsApp par la « Transmission WA Universelle » Liluvine (SAWALI) : codes de connexion (OTP) et rapports PDF. SECRETS saisis par le propriétaire dans Render. ---
+    # Adresse du service SAWALI (…/api/webhook/liluvine-send) ; vide = WhatsApp non configuré (rien n'est bloqué : voir otp_connexion_whatsapp)
+    liluvine_wa_url: str = ""
+    liluvine_wa_hmac: str = ""                # clé HMAC propre à ShuyahStore dans SAWALI (jamais affichée, jamais journalisée)
+    liluvine_wa_emetteur: str = "shuyahstore"  # code de l'émetteur créé dans SAWALI (pas secret)
+    indicatif_defaut: str = "226"             # un numéro local de 8 chiffres reçoit cet indicatif (Burkina Faso)
+    # Code WhatsApp exigé à la connexion : « auto » = si WhatsApp est configuré ET que le compte a un numéro vérifié ; « non » = jamais (dépannage) ; « oui » = idem auto
+    otp_connexion_whatsapp: str = "auto"
     # Dépôt d'applications : « auto » = adresse vérifiée exigée SI l'envoi d'e-mails est configuré ; « oui » / « non » pour forcer
     email_verifie_pour_deposer: str = "auto"
 

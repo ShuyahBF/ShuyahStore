@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 import email_envoi
+import liluvine_wa
 import totp
 from config import get_settings
 from db import db
@@ -39,12 +40,14 @@ class Inscription(BaseModel):
     nom: str = Field(min_length=2, max_length=80)                 # ex. « BADINI Awa » (NOM puis prénom) ou nom du studio
     email: str = Field(min_length=5, max_length=120)
     mot_de_passe: str = Field(min_length=8, max_length=128)
+    whatsapp: str = Field(min_length=6, max_length=25)            # numéro WhatsApp OBLIGATOIRE : reçoit le code de connexion (OTP) par Liluvine
 
 
 class Connexion(BaseModel):
     email: str = Field(min_length=3, max_length=120)
     mot_de_passe: str = Field(min_length=1, max_length=128)
     code: str = Field("", max_length=20)          # double authentification : code à 6 chiffres de l'application, ou code de secours
+    code_wa: str = Field("", max_length=12)       # code à 6 chiffres reçu par WhatsApp (Liluvine) à la demande de connexion
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -114,10 +117,23 @@ async def inscription(data: Inscription, response: Response):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Adresse e-mail invalide")
     if await db.users.find_one({"email": email}, {"_id": 1}):
         raise HTTPException(status.HTTP_409_CONFLICT, "Un compte existe déjà avec cette adresse e-mail")
-    user = {"id": str(uuid.uuid4()), "nom": data.nom.strip(), "email": email, "role": "utilisateur",
+    numero = liluvine_wa.normaliser_numero(data.whatsapp)
+    if not numero:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Numéro WhatsApp invalide (exemple : +226 70 12 34 56)")
+    if await db.users.find_one({"whatsapp": numero, "whatsapp_verifie_pour": numero}, {"_id": 1}):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ce numéro WhatsApp est déjà utilisé par un autre compte")
+    user = {"id": str(uuid.uuid4()), "nom": data.nom.strip(), "email": email, "role": "utilisateur", "whatsapp": numero,
             "password_hash": hash_password(data.mot_de_passe), "version_session": 0, "cree_le": iso()}
     await db.users.insert_one(user.copy())
-    return _session(response, user)
+    # Code de vérification du numéro envoyé tout de suite (sans bloquer l'inscription s'il échoue : « Renvoyer le code » reste possible)
+    code_envoye = False
+    if liluvine_wa.configure():
+        try:
+            await _envoyer_code_wa(user, "verification", numero)
+            code_envoye = True
+        except HTTPException:
+            pass
+    return {**_session(response, user), "whatsapp_code_envoye": code_envoye}
 
 
 @router.post("/connexion", dependencies=[Depends(limiter_appels_publics)])
@@ -137,6 +153,14 @@ async def connexion(data: Connexion, request: Request, response: Response):
         if not await verifier_second_facteur(user, data.code):
             await noter_echec(cle)
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Code de double authentification incorrect ou déjà utilisé")
+    elif otp_connexion_actif(user):
+        # Demande de connexion : un code à 6 chiffres part par WhatsApp (Liluvine) vers le numéro VÉRIFIÉ du compte ; sans lui, aucune session n'est ouverte
+        if not data.code_wa.strip():
+            await _envoyer_code_wa(user, "connexion", user["whatsapp"])
+            return {"wa_requis": True, "numero_masque": liluvine_wa.masquer_numero(user["whatsapp"]), "validite_minutes": VALIDITE_WA_MIN}
+        if not await _code_wa_valide(user, "connexion", data.code_wa):
+            await noter_echec(cle)
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Code WhatsApp incorrect, expiré ou déjà utilisé")
     await effacer_echecs(cle)
     return _session(response, user)
 
@@ -298,6 +322,126 @@ async def email_verifier(data: CodeEmail, user: dict = Depends(get_current_user)
         await db.users.update_one({"id": user["id"]}, {"$inc": {"email_verif.essais": 1}})
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Code incorrect.")
     await db.users.update_one({"id": user["id"]}, {"$set": {"email_verifie_le": iso(), "email_verifie_pour": fiche["email"]}, "$unset": {"email_verif": ""}})
+    return {"ok": True}
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Numéro WhatsApp et codes à usage unique (OTP) par Liluvine (lot 16)
+# ----------------------------------------------------------------------------------------------------------------------
+# Le numéro WhatsApp est OBLIGATOIRE à l'inscription. Il est VÉRIFIÉ par un code reçu sur WhatsApp ; une fois vérifié, chaque demande de
+# connexion (mot de passe correct) déclenche l'envoi d'un nouveau code par WhatsApp (sauf si la double authentification par application est
+# activée : c'est alors elle qui sert de second facteur). Code à 6 chiffres, 10 minutes, 5 essais, usage unique ; seule son empreinte est gardée.
+# Limites anti-abus par compte : 1 envoi par minute ; 5 par jour pour la vérification, 10 par jour pour la connexion.
+# Un service absent ne bloque jamais l'utilisateur honnête : WhatsApp non configuré ou réglage OTP_CONNEXION_WHATSAPP=non → pas de code exigé.
+VALIDITE_WA_MIN = 10
+ENVOIS_WA_PAR_JOUR = {"verification": 5, "connexion": 10}
+
+
+def _empreinte_wa(user_id: str, objet: str, code: str) -> str:
+    return hashlib.sha256(f"{get_settings().jwt_secret}|wa|{objet}|{user_id}|{code}".encode()).hexdigest()
+
+
+def numero_verifie(user: dict) -> bool:
+    return bool(user.get("whatsapp")) and user.get("whatsapp_verifie_pour") == user.get("whatsapp")
+
+
+def otp_connexion_actif(user: dict) -> bool:
+    """Vrai si la connexion de ce compte exige un code WhatsApp : service configuré, numéro vérifié, et réglage non coupé par le propriétaire."""
+    if (get_settings().otp_connexion_whatsapp or "auto").strip().lower() in ("non", "false", "0"):
+        return False
+    return liluvine_wa.configure() and numero_verifie(user)
+
+
+async def _envoyer_code_wa(user: dict, objet: str, numero: str) -> None:
+    """Envoie un code par WhatsApp (Liluvine) et en garde l'empreinte. Lève 429 (trop rapide / trop de demandes) ou 503 (envoi impossible)."""
+    maintenant = time.time()
+    cle_envois = f"wa_envois_{objet}"
+    fiche = await db.users.find_one({"id": user["id"]}, {"_id": 0, cle_envois: 1}) or {}
+    envois = [t for t in (fiche.get(cle_envois) or []) if maintenant - t < 86400]
+    if envois and maintenant - envois[-1] < ATTENTE_RENVOI_S:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"Patientez {int(ATTENTE_RENVOI_S - (maintenant - envois[-1])) + 1} secondes avant de demander un nouveau code.")
+    if len(envois) >= ENVOIS_WA_PAR_JOUR[objet]:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Trop de codes demandés aujourd'hui : réessayez demain.")
+    code = f"{secrets.randbelow(10**6):06d}"
+    but = "pour vérifier votre numéro WhatsApp" if objet == "verification" else "pour vous connecter"
+    texte = (f"ShuyahStore : votre code {but} est {code}.\n\nIl est valable {VALIDITE_WA_MIN} minutes. "
+             "Ne le communiquez à personne ; si vous n'êtes pas à l'origine de cette demande, ignorez ce message.")
+    res = await liluvine_wa.envoyer_whatsapp(numero, texte)
+    if not res["ok"]:
+        detail = res["erreur"] if res.get("desinscrit") else "Le code WhatsApp n'a pas pu être envoyé : réessayez dans un instant."
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail)
+    await db.users.update_one({"id": user["id"]}, {"$set": {cle_envois: envois + [maintenant], f"wa_otp_{objet}": {
+        "code_hash": _empreinte_wa(user["id"], objet, code), "expire_le": maintenant + VALIDITE_WA_MIN * 60, "essais": 0, "numero": numero}}})
+
+
+async def _code_wa_valide(user: dict, objet: str, saisie: str) -> bool:
+    """Vrai si `saisie` est le dernier code envoyé pour cet objet : non expiré, moins de 5 essais, USAGE UNIQUE (consommé par une mise à jour
+    conditionnelle : deux connexions simultanées ne peuvent pas réutiliser le même code)."""
+    champ = f"wa_otp_{objet}"
+    fiche = await db.users.find_one({"id": user["id"]}, {"_id": 0, champ: 1, "whatsapp": 1}) or {}
+    v = fiche.get(champ) or {}
+    if not v or v.get("numero") != fiche.get("whatsapp") or time.time() > v.get("expire_le", 0) or v.get("essais", 0) >= ESSAIS_MAX:
+        return False
+    chiffres = "".join(c for c in str(saisie) if c.isdigit())
+    if not secrets.compare_digest(_empreinte_wa(user["id"], objet, chiffres), v.get("code_hash", "")):
+        await db.users.update_one({"id": user["id"]}, {"$inc": {f"{champ}.essais": 1}})
+        return False
+    res = await db.users.update_one({"id": user["id"], f"{champ}.code_hash": v["code_hash"]}, {"$unset": {champ: ""}})
+    return bool(res.modified_count)
+
+
+@router.get("/whatsapp/etat")
+async def whatsapp_etat(user: dict = Depends(get_current_user)):
+    return {"numero_masque": liluvine_wa.masquer_numero(user["whatsapp"]) if user.get("whatsapp") else None, "verifie": numero_verifie(user),
+            "disponible": liluvine_wa.configure(), "requis": not user.get("whatsapp"), "otp_connexion": otp_connexion_actif(user)}
+
+
+class NouveauNumero(BaseModel):
+    mot_de_passe: str = Field(min_length=1, max_length=128)
+    whatsapp: str = Field(min_length=6, max_length=25)
+
+
+@router.post("/whatsapp/definir")
+async def whatsapp_definir(data: NouveauNumero, user: dict = Depends(get_current_user)):
+    """Enregistre ou change le numéro WhatsApp (mot de passe redemandé) ; le nouveau numéro doit être VÉRIFIÉ par un code reçu dessus."""
+    await _exiger_mot_de_passe(user, data.mot_de_passe)
+    numero = liluvine_wa.normaliser_numero(data.whatsapp)
+    if not numero:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Numéro WhatsApp invalide (exemple : +226 70 12 34 56)")
+    if await db.users.find_one({"whatsapp": numero, "whatsapp_verifie_pour": numero, "id": {"$ne": user["id"]}}, {"_id": 1}):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ce numéro WhatsApp est déjà utilisé par un autre compte")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"whatsapp": numero}, "$unset": {"whatsapp_verifie_le": "", "whatsapp_verifie_pour": "", "wa_otp_verification": "", "wa_otp_connexion": ""}})
+    code_envoye, erreur = False, None
+    if liluvine_wa.configure():
+        try:
+            await _envoyer_code_wa({**user, "whatsapp": numero}, "verification", numero)
+            code_envoye = True
+        except HTTPException as exc:
+            erreur = exc.detail
+    return {"ok": True, "numero_masque": liluvine_wa.masquer_numero(numero), "code_envoye": code_envoye, "erreur": erreur}
+
+
+@router.post("/whatsapp/envoyer-code")
+async def whatsapp_envoyer_code(user: dict = Depends(get_current_user)):
+    if not liluvine_wa.configure():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "L'envoi de messages WhatsApp n'est pas encore activé sur ShuyahStore.")
+    if not user.get("whatsapp"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Enregistrez d'abord votre numéro WhatsApp.")
+    if numero_verifie(user):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Votre numéro WhatsApp est déjà vérifié.")
+    await _envoyer_code_wa(user, "verification", user["whatsapp"])
+    return {"ok": True, "validite_minutes": VALIDITE_WA_MIN, "numero_masque": liluvine_wa.masquer_numero(user["whatsapp"])}
+
+
+@router.post("/whatsapp/verifier")
+async def whatsapp_verifier(data: CodeEmail, user: dict = Depends(get_current_user)):
+    cle = f"whatsapp:{user['id']}"
+    await verifier_non_bloque(cle)
+    if not user.get("whatsapp") or not await _code_wa_valide(user, "verification", data.code):
+        await noter_echec(cle)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Code incorrect, expiré ou déjà utilisé.")
+    await effacer_echecs(cle)
+    await db.users.update_one({"id": user["id"]}, {"$set": {"whatsapp_verifie_le": iso(), "whatsapp_verifie_pour": user["whatsapp"]}})
     return {"ok": True}
 
 

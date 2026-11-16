@@ -78,6 +78,9 @@ def utilisateur_public(user: dict) -> dict:
     fiche = {k: user.get(k) for k in ("id", "nom", "email", "role", "cree_le")}
     a2f = user.get("a2f") or {}
     fiche["email_verifie"] = bool(user.get("email_verifie_le")) and user.get("email_verifie_pour") == user.get("email")
+    fiche["whatsapp_requis"] = not user.get("whatsapp")             # comptes anciens : le numéro WhatsApp doit être ajouté (l'écran le demande)
+    fiche["whatsapp_masque"] = (user["whatsapp"][:4] + " •••• " + user["whatsapp"][-2:]) if user.get("whatsapp") else None
+    fiche["whatsapp_verifie"] = bool(user.get("whatsapp")) and user.get("whatsapp_verifie_pour") == user.get("whatsapp")
     fiche["a2f"] = bool(a2f.get("actif"))                         # double authentification activée ?
     fiche["codes_secours_restants"] = len(a2f.get("secours") or []) if a2f.get("actif") else None
     return fiche
