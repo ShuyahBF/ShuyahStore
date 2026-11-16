@@ -22,7 +22,16 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
 - Double authentification (lot 3, 16/11/2026) : chaque utilisateur l'ACTIVE ou la DÉSACTIVE dans « Mon Compte » (code TOTP d'une application
   d'authentification + 8 codes de secours à usage unique). Secret gardé chiffré en base (clé dérivée de JWT_SECRET), codes de secours en empreinte ;
   activer exige le mot de passe, désactiver exige mot de passe + code. Changer JWT_SECRET rend les secrets illisibles (les codes de secours restent valables).
-- Première version = site web ; l'application Android ShuyahStore (installation, mises à jour, installations et désinstallations réelles) est la deuxième étape.
+- Application Android ShuyahStore (lot 4, 16/11/2026), dossier `android/` (paquet `com.shuyah.store`) : application HYBRIDE — le site dans une fenêtre
+  intégrée + le pont `window.ShuyahStoreAndroid` (`Pont.kt` ↔ `frontend/src/lib/pontAndroid.js`) pour installer, mettre à jour, désinstaller, ouvrir,
+  connaître ce qui est installé, et le verrou par empreinte (activable / désactivable dans « Mon Compte » / « Réglages »).
+  - Avant d'installer, le TÉLÉPHONE vérifie l'empreinte du fichier, le nom de paquet et le certificat (`Installeur.kt`) ; Android demande toujours confirmation.
+  - Mises à jour : le téléphone reçoit l'index du catalogue (`GET /api/index`) et compare SUR PLACE ; la liste des applications installées n'est jamais envoyée.
+  - Installations / désinstallations (`POST /api/appareils/evenement`) : comptées une fois par appareil et par application, et seulement si le serveur a vu
+    cet appareil télécharger la version (en-tête `X-Appareil`, identifiant aléatoire).
+  - Build : `cd android && gradle :app:assembleRelease -PsignerAvecCleLocale=true` (clé de test) ou variables `ANDROID_KEYSTORE_FILE` / `_PASSWORD` /
+    `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD` (clé permanente, jamais dans le dépôt). Adresses : `-PsiteUrl=…` et `-PapiUrl=…`.
+  - Règle « APK livré à chaque livraison » : toute livraison qui touche `android/` ou le pont envoie l'APK release (`shuyahstore-X.Y.apk`, version + 1).
 
 ## Règles propres à ShuyahStore (sécurité, règle 21)
 - Rien de ce que déclare un développeur n'est cru sur parole : paquet, version, autorisations et certificat sont LUS dans l'APK par `backend/apk.py`,

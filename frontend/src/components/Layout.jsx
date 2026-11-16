@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Code2, FileSearch, LayoutGrid, LogIn, LogOut, ShieldCheck, Store, UserRound } from "lucide-react";
+import { Code2, FileSearch, LayoutGrid, LogIn, LogOut, ShieldCheck, Smartphone, Store, UserRound } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/Toast";
 import { apiClient } from "@/lib/api";
 import { titreMenu } from "@/lib/format";
+import { dansApplication } from "@/lib/pontAndroid";
 import { libelleVersion } from "@/version";
 
 /** État du serveur : « Serveur actif », lent ou injoignable (pastille + texte). */
@@ -27,6 +28,7 @@ export default function Layout() {
   // Menu : libellés passés par titreMenu (règle 18 : une majuscule à chaque mot), pictogramme + légende (règle 15)
   const liens = [
     { vers: "/", libelle: "catalogue", Picto: LayoutGrid, fin: true },
+    ...(dansApplication() ? [{ vers: "/mes-applications", libelle: "mes applications", Picto: Smartphone }] : []),   // application Android seulement
     { vers: "/verifier", libelle: "vérifier un fichier", Picto: FileSearch },
     { vers: "/developpeur", libelle: "espace développeur", Picto: Code2 },
     ...(user?.role === "admin" ? [{ vers: "/admin", libelle: "administration", Picto: ShieldCheck }] : []),
@@ -47,9 +49,11 @@ export default function Layout() {
             {user ? (<>
               <NavLink to="/compte" className={({ isActive }) => `inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-semibold ${isActive ? "bg-white text-nuit" : "text-white/90 hover:bg-white/10"}`} title={user.nom}><UserRound className="h-4 w-4" aria-hidden="true" />{titreMenu("mon compte")}</NavLink>
               <button type="button" onClick={quitter} className="inline-flex items-center gap-1.5 rounded-lg border border-white/30 px-3 py-2 font-semibold hover:bg-white/10"><LogOut className="h-4 w-4" aria-hidden="true" />{titreMenu("déconnexion")}</button>
-            </>) : user === null && (
+            </>) : user === null && (<>
+              {/* Dans l'application, les réglages du téléphone (verrou par empreinte) restent accessibles sans compte */}
+              {dansApplication() && <NavLink to="/compte" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-semibold text-white/90 hover:bg-white/10"><UserRound className="h-4 w-4" aria-hidden="true" />{titreMenu("réglages")}</NavLink>}
               <Link to="/connexion" className="inline-flex items-center gap-1.5 rounded-lg bg-ocre px-3 py-2 font-semibold hover:bg-orange-800"><LogIn className="h-4 w-4" aria-hidden="true" />{titreMenu("connexion")}</Link>
-            )}
+            </>)}
           </div>
         </div>
         <div className="h-1 bg-gradient-to-r from-ocre via-ocre-clair to-emerald-500" aria-hidden="true" />

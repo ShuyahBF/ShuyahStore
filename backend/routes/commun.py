@@ -29,7 +29,7 @@ def version_ecran(v: dict, avec_fichier: bool = False) -> dict:
 def app_ecran(a: dict, detail: bool = False) -> dict:
     """Application telle que l'écran la reçoit (jamais l'identité technique du fichier d'icône ni les champs internes)."""
     cles = ["id", "paquet", "nom", "resume", "categorie", "nom_developpeur", "statut", "recommandee", "telechargements", "note_moyenne",
-            "nb_avis", "maj_le", "cree_le", "version_courante", "signature_changee_le"]
+            "nb_avis", "maj_le", "cree_le", "version_courante", "signature_changee_le", "installations", "installations_actives", "desinstallations"]
     if detail:
         cles += ["description", "site", "contact", "certificats_sha256", "developpeur_id", "motif_suspension"]
     r = {k: a.get(k) for k in cles}

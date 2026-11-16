@@ -60,6 +60,9 @@ async def ensure_indexes() -> None:
     await db.telechargements.create_index([("version_id", 1), ("origine", 1), ("jour", 1)], unique=True)
     await db.telechargements.create_index([("app_id", 1), ("user_id", 1)])
     await db.telechargements.create_index("date", expireAfterSeconds=400 * 24 * 3600)
+    # Installations signalées par l'application Android : un appareil compte une seule fois par application
+    await db.installations.create_index([("appareil_id", 1), ("app_id", 1)], unique=True)
+    await db.telechargements.create_index([("version_id", 1), ("appareil_id", 1)])
     # Signalements et échecs de connexion
     await db.signalements.create_index([("statut", 1), ("cree_le", -1)])
     await db.echecs_connexion.create_index([("cle", 1), ("date", 1)])

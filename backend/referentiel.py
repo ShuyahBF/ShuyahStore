@@ -44,6 +44,7 @@ AUTORISATIONS = {
     "android.permission.WAKE_LOCK": ("Empêcher la mise en veille", "normal"),
     "android.permission.FOREGROUND_SERVICE": ("Fonctionner en arrière-plan", "normal"),
     "android.permission.RECEIVE_BOOT_COMPLETED": ("Démarrer avec le téléphone", "normal"),
+    "android.permission.REQUEST_DELETE_PACKAGES": ("Proposer de désinstaller des applications", "normal"),
     "android.permission.QUERY_ALL_PACKAGES": ("Voir la liste des applications installées", "sensible"),
     "android.permission.READ_MEDIA_VIDEO": ("Lire vos vidéos", "sensible"),
     "android.permission.READ_MEDIA_AUDIO": ("Lire vos fichiers audio", "sensible"),

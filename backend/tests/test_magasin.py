@@ -226,3 +226,38 @@ def test_version_sante_referentiel_et_appels_lents(client, admin):
     assert {"code": "finance", "libelle": "Finance Et Paiements"} in ref["categories"] and ref["motifs_signalement"]
     routes = client.get("/api/admin/appels-lents", headers=admin).json()["routes"]
     assert routes and {"route", "moyenne_ms", "cinq_derniers_ms", "dernier_ms", "maximum_ms"} <= set(routes[0])
+
+
+# ---------------------------------------------------------------- application Android (lot 4)
+APPAREIL = "1b4e28ba-2fa1-41d2-883f-0016d3cca427"
+AUTRE_APPAREIL = "9c5b94b1-35ad-49bb-b118-8e8fc24abf80"
+
+
+def test_index_des_versions_courantes(client, compte, admin):
+    _, _, app, v, octets = application_publiee(client, compte, admin, code=7)
+    ligne = next(x for x in client.get("/api/index").json()["apps"] if x["paquet"] == app["paquet"])
+    assert ligne["version"]["id"] == v["id"] and ligne["version"]["version_code"] == 7 and ligne["version"]["sha256"] == hashlib.sha256(octets).hexdigest()
+    assert ligne["certificats_sha256"] == app["certificats_sha256"]
+
+
+def test_installations_ancrees_sur_le_telechargement_vu_par_le_serveur(client, compte, admin):
+    _, _, app, v, _ = application_publiee(client, compte, admin)
+    ev = lambda **c: client.post("/api/appareils/evenement", json=c)   # noqa: E731
+    compteurs = lambda: {k: client.get(f"/api/apps/{app['id']}").json()["app"].get(k) or 0 for k in ("installations", "installations_actives", "desinstallations")}   # noqa: E731
+    assert ev(appareil="pas-un-uuid", type="installation", version_id=v["id"]).status_code == 422
+    # sans téléchargement vu par le serveur pour CET appareil : installation refusée (on ne gonfle pas les chiffres par un simple appel)
+    assert ev(appareil=APPAREIL, type="installation", version_id=v["id"]).status_code == 409
+    assert client.get(f"/api/versions/{v['id']}/apk", headers={"X-Appareil": APPAREIL}).status_code == 200
+    assert ev(appareil=AUTRE_APPAREIL, type="installation", version_id=v["id"]).status_code == 409           # un autre appareil ne profite pas du téléchargement
+    assert ev(appareil=APPAREIL, type="installation", version_id=v["id"]).json() == {"ok": True, "compte": True}
+    assert ev(appareil=APPAREIL, type="installation", version_id=v["id"]).json()["compte"] is False           # compté une seule fois
+    assert compteurs() == {"installations": 1, "installations_actives": 1, "desinstallations": 0}
+    # désinstallation : comptée une fois, seulement pour un appareil dont l'installation est connue
+    assert ev(appareil=AUTRE_APPAREIL, type="desinstallation", paquet=app["paquet"]).json()["compte"] is False
+    assert ev(appareil=APPAREIL, type="desinstallation", paquet=app["paquet"]).json()["compte"] is True
+    assert ev(appareil=APPAREIL, type="desinstallation", paquet=app["paquet"]).json()["compte"] is False
+    assert compteurs() == {"installations": 1, "installations_actives": 0, "desinstallations": 1}
+    # réinstallation : de nouveau active, sans recompter une installation
+    assert ev(appareil=APPAREIL, type="installation", version_id=v["id"]).json()["compte"] is False
+    assert compteurs() == {"installations": 1, "installations_actives": 1, "desinstallations": 1}
+    assert ev(appareil=APPAREIL, type="desinstallation", paquet="paquet.inconnu").status_code == 404

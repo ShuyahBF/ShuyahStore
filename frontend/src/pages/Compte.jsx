@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, Copy, Download, LogIn, ShieldCheck, ShieldOff, ShieldPlus, X } from "lucide-react";
+import { AlertTriangle, Copy, Download, Fingerprint, LogIn, ShieldCheck, ShieldOff, ShieldPlus, X } from "lucide-react";
 import ChampMotDePasse from "@/components/ChampMotDePasse";
 import { Patientez } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -8,6 +8,7 @@ import { useToast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient, messageErreur } from "@/lib/api";
 import { dateFr } from "@/lib/format";
+import { capacites, dansApplication, definirVerrou, verrouActif } from "@/lib/pontAndroid";
 
 // MON COMPTE : identité et SÉCURITÉ. La double authentification s'active et se désactive ici (lot 3) :
 //   activer    = mot de passe → QR code à scanner dans une application d'authentification → code de confirmation → codes de secours ;
@@ -23,9 +24,31 @@ export default function Compte() {
   const [secours, setSecours] = useState(null);                  // codes de secours montrés une fois
   const [note, setNote] = useState(false);
   const [occupe, setOccupe] = useState(false);
+  // Application Android : verrou de l'application par empreinte (réglage gardé sur le téléphone, indépendant du compte)
+  const [verrou, setVerrou] = useState(verrouActif());
+  const basculerVerrou = async () => {
+    toast.info(verrou ? "Désactivation du verrou en cours…" : "Activation du verrou en cours…");
+    const r = await definirVerrou(!verrou);
+    if (r.ok) { setVerrou(r.actif); toast.succes(r.actif ? "Verrou activé : l'application demandera votre empreinte à l'ouverture" : "Verrou désactivé"); }
+    else toast.erreur(r.erreur || "Réglage non modifié");
+  };
 
   if (user === undefined) return <Patientez />;
-  if (!user) return <div className="card mx-auto max-w-lg space-y-3 text-center"><p>Connectez-vous pour régler votre compte.</p><Link to="/connexion?suite=/compte" className="btn-primary"><LogIn className="h-4 w-4" aria-hidden="true" />Se connecter</Link></div>;
+
+  const blocVerrou = dansApplication() && (
+    <section className="card space-y-3" data-testid="bloc-verrou">
+      <h2 className="text-lg font-bold">Verrou de l'application par empreinte</h2>
+      <p className="text-sm text-gray-700">À chaque ouverture, ShuyahStore demande votre empreinte (ou le code du téléphone). Ce réglage est gardé sur ce téléphone.</p>
+      {!capacites()?.verrou_disponible ? <p className="flex items-start gap-2 rounded-lg bg-amber-100 p-3 text-sm text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Ce téléphone n'a ni empreinte enregistrée ni verrouillage d'écran : réglez-le d'abord dans les paramètres d'Android.</span></p> : verrou ? (<>
+        <p className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><Fingerprint className="h-5 w-5" aria-hidden="true" />Activé</p>
+        <button type="button" className="btn-outline border-red-300 text-red-800" onClick={basculerVerrou}><ShieldOff className="h-4 w-4" aria-hidden="true" />Désactiver le verrou par empreinte</button>
+      </>) : (<>
+        <p className="flex items-center gap-2 rounded-lg bg-gray-100 p-3 text-sm font-semibold text-gray-800"><ShieldOff className="h-5 w-5" aria-hidden="true" />Désactivé</p>
+        <button type="button" className="btn-vert" onClick={basculerVerrou}><Fingerprint className="h-4 w-4" aria-hidden="true" />Activer le verrou par empreinte</button>
+      </>)}
+    </section>
+  );
+  if (!user) return <div className="mx-auto max-w-2xl space-y-4">{blocVerrou}<div className="card space-y-3 text-center"><p>Connectez-vous pour régler votre compte.</p><Link to="/connexion?suite=/compte" className="btn-primary"><LogIn className="h-4 w-4" aria-hidden="true" />Se connecter</Link></div></div>;
 
   const ouvrir = (laquelle) => { setFenetre(laquelle); setEtape(1); setMdp(""); setCode(""); setReglage(null); setSecours(null); setNote(false); };
   const fermer = () => {
@@ -83,6 +106,8 @@ export default function Compte() {
           <button type="button" className="btn-vert" onClick={() => ouvrir("activer")} data-testid="activer-a2f"><ShieldPlus className="h-4 w-4" aria-hidden="true" />Activer la double authentification</button>
         </>)}
       </section>
+
+      {blocVerrou}
 
       {/* Fenêtre : activation en trois étapes */}
       <Modal ouvert={fenetre === "activer"} titre={`Activer la double authentification (${etape}/3)`} onFermer={occupe ? undefined : fermer}>

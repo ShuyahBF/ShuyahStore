@@ -26,7 +26,8 @@ une version « débogable » est refusée ; un APK signé seulement avec l'ancie
 
 ## Ce qui n'est PAS encore fait
 
-- L'application Android « ShuyahStore » (installer et mettre à jour d'un geste, compter les **installations** et **désinstallations** réelles) : deuxième étape. Aujourd'hui le site compte les **téléchargements** (un par version, par origine et par jour).
+- La vérification de l'application Android sur un vrai téléphone : elle compile et son parcours a été essayé côté site avec un pont simulé, pas encore sur un appareil.
+- La connexion par empreinte sur le SITE (clés d'accès / WebAuthn) : l'empreinte verrouille aujourd'hui l'application Android.
 - La vérification de l'adresse e-mail des comptes par un code.
 - L'analyse antivirus du contenu des APK : la validation repose sur l'examen de l'administrateur.
 - La rotation de clé du schéma v3 (ancienne clé → nouvelle clé prouvée) : remplacée par l'autorisation de l'administrateur, affichée aux utilisateurs.
@@ -36,6 +37,7 @@ une version « débogable » est refusée ; un APK signé seulement avec l'ancie
 ```
 backend/    API FastAPI (Python) + MongoDB — tests : cd backend && python -m pytest tests -q
 frontend/   Site React (Vite, Tailwind)   — cd frontend && npm install && npm run dev
+android/    Application Android ShuyahStore (Kotlin) — cd android && gradle :app:assembleRelease -PsignerAvecCleLocale=true
 render.yaml Déploiement Render (API + site statique)
 ```
 

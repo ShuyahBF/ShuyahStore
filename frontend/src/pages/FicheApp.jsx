@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Download, FileSearch, Flag, Globe, History, Mail, MessageSquarePlus, RefreshCw, Save, Send, Smartphone, Star, Trash2, X } from "lucide-react";
 import BlocSignature, { Autorisations } from "@/components/BlocSignature";
+import BoutonInstaller from "@/components/BoutonInstaller";
 import { Etoiles, IconeApp, Patientez, Recommandee, Statut } from "@/components/Communs";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient, lienApk, messageErreur } from "@/lib/api";
 import { dateFr, nombre, taille } from "@/lib/format";
+import { dansApplication, etatPaquets } from "@/lib/pontAndroid";
 
 // FICHE d'une application : ce qu'il faut savoir AVANT de télécharger (taille, Android minimum, signature, autorisations en clair),
 // puis les avis, les anciennes versions et le signalement. Les détails et les saisies s'ouvrent en fenêtre modale (règle 20).
@@ -21,15 +23,19 @@ export default function FicheApp() {
   const [avis, setAvis] = useState({ note: 5, texte: "" });
   const [signalement, setSignalement] = useState({ motif: "", details: "" });
   const [occupe, setOccupe] = useState(false);
+  // Application Android : numéro de version installé sur ce téléphone (undefined = pas installée), relu après chaque action
+  const [installee, setInstallee] = useState(undefined);
+  const relireInstallation = useCallback((paquet) => { if (dansApplication() && paquet) setInstallee(etatPaquets([paquet])[paquet]); }, []);
 
   const charger = useCallback(async (annonce = false) => {
     if (annonce) toast.info("Actualisation de la fiche en cours…");
     try {
       const { data } = await apiClient.get(`/apps/${encodeURIComponent(reference)}`);
       setD(data); setAvis(data.mon_avis || { note: 5, texte: "" });
+      relireInstallation(data.app.paquet);
       if (annonce) toast.succes(`Fiche relue : ${data.avis.length} avis, ${nombre(data.app.telechargements)} téléchargement(s)`);
     } catch (err) { if (err?.response?.status === 404) setD(null); else { toast.erreur(messageErreur(err, "Fiche indisponible")); setD((x) => x ?? null); } }
-  }, [reference, toast]);
+  }, [reference, toast, relireInstallation]);
   useEffect(() => { charger(); }, [charger]);
   useEffect(() => { apiClient.get("/referentiel").then((r) => setMotifs(r.data.motifs_signalement)).catch(() => {}); }, []);
 
@@ -69,14 +75,17 @@ export default function FicheApp() {
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <Etoiles note={app.note_moyenne} nb={app.nb_avis} />
             <span className="inline-flex items-center gap-1 tabular-nums text-primary"><Download className="h-4 w-4" aria-hidden="true" />{nombre(app.telechargements)} téléchargement{app.telechargements > 1 ? "s" : ""}</span>
+            {(app.installations || 0) > 0 && <span className="inline-flex items-center gap-1 tabular-nums text-emerald-800" title="Comptées par l'application Android ShuyahStore : un appareil compte une fois"><Smartphone className="h-4 w-4" aria-hidden="true" />{nombre(app.installations)} installation{app.installations > 1 ? "s" : ""} · {nombre(app.desinstallations || 0)} désinstallation{(app.desinstallations || 0) > 1 ? "s" : ""}</span>}
             {app.recommandee && <Recommandee />}
             {app.statut !== "publiee" && <Statut code={app.statut} />}
           </div>
         </div>
         {courante?.fichier_disponible && (
           <div className="flex shrink-0 flex-col gap-1 sm:items-end">
-            <a href={lienApk(courante.id)} className="btn-primary px-6 py-3 text-base" data-testid="telecharger" onClick={() => toast.info("Téléchargement lancé…")}>
-              <Download className="h-5 w-5" aria-hidden="true" />Télécharger ({taille(courante.taille)})</a>
+            {dansApplication()
+              ? <BoutonInstaller app={app} version={courante} certificats={app.certificats_sha256} installee={installee} surChangement={() => { relireInstallation(app.paquet); charger(); }} />
+              : <a href={lienApk(courante.id)} className="btn-primary px-6 py-3 text-base" data-testid="telecharger" onClick={() => toast.info("Téléchargement lancé…")}>
+              <Download className="h-5 w-5" aria-hidden="true" />Télécharger ({taille(courante.taille)})</a>}
             <span className="text-xs text-gray-600">Version {courante.version_nom || courante.version_code} · {dateFr(courante.publie_le || courante.cree_le)}</span>
             {courante.android_minimum && <span className="inline-flex items-center gap-1 text-xs text-gray-600"><Smartphone className="h-3.5 w-3.5" aria-hidden="true" />{courante.android_minimum}</span>}
           </div>
