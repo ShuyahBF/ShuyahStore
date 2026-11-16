@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Copy, Download, Fingerprint, LogIn, ShieldCheck, ShieldOff, ShieldPlus, X } from "lucide-react";
 import ChampMotDePasse from "@/components/ChampMotDePasse";
+import VerificationEmail from "@/components/VerificationEmail";
 import { Patientez } from "@/components/Communs";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
@@ -93,6 +94,8 @@ export default function Compte() {
         <p><span className="text-gray-600">E-mail :</span> <b className="text-primary">{user.email}</b> <span className="text-xs text-gray-500">(déclaré, non vérifié)</span></p>
         <p><span className="text-gray-600">Compte créé le :</span> <span className="tabular-nums">{dateFr(user.cree_le)}</span></p>
       </section>
+
+      <VerificationEmail />
 
       <section className="card space-y-3" data-testid="bloc-a2f">
         <h2 className="text-lg font-bold">Double authentification</h2>

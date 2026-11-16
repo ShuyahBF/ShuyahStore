@@ -93,6 +93,11 @@ export default function Developpeur() {
         </div>
       </div>
 
+      {user && user.email_verifie === false && (
+        <p className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" data-testid="bandeau-email">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />Votre adresse e-mail n'est pas vérifiée.
+          <Link to="/compte" className="font-semibold underline">Vérifier mon adresse dans « Mon Compte »</Link></p>
+      )}
       {!apps ? <Patientez /> : apps.length === 0 ? (
         <p className="card text-gray-600">Vous n'avez pas encore déposé d'application. Cliquez sur le bouton orange « Déposer une application » : il suffit du fichier APK signé (version de publication).</p>
       ) : (
