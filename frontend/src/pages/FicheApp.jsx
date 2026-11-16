@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Download, Flag, Globe, History, Mail, MessageSquarePlus, RefreshCw, Save, Send, Smartphone, Star, Trash2, X } from "lucide-react";
+import { ArrowLeft, Download, FileSearch, Flag, Globe, History, Mail, MessageSquarePlus, RefreshCw, Save, Send, Smartphone, Star, Trash2, X } from "lucide-react";
 import BlocSignature, { Autorisations } from "@/components/BlocSignature";
 import { Etoiles, IconeApp, Patientez, Recommandee, Statut } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -93,6 +93,7 @@ export default function FicheApp() {
             <div className="flex flex-wrap gap-2 pt-1 text-sm">
               {app.site && <a href={app.site} target="_blank" rel="noopener noreferrer nofollow" className="btn-outline btn-sm"><Globe className="h-4 w-4 text-primary" aria-hidden="true" />Site du développeur</a>}
               {app.contact && <a href={`mailto:${app.contact}`} className="btn-outline btn-sm"><Mail className="h-4 w-4 text-primary" aria-hidden="true" />Contacter</a>}
+              <Link to="/verifier" className="btn-outline btn-sm"><FileSearch className="h-4 w-4 text-primary" aria-hidden="true" />Vérifier un fichier reçu</Link>
               <button type="button" className="btn-outline btn-sm" onClick={() => setFenetre("versions")}><History className="h-4 w-4 text-primary" aria-hidden="true" />Versions ({versions.length})</button>
               <button type="button" className="btn-outline btn-sm" onClick={() => charger(true)}><RefreshCw className="h-4 w-4 text-primary" aria-hidden="true" />Actualiser</button>
               <button type="button" className="btn-outline btn-sm border-red-300 text-red-800" onClick={() => setFenetre("signaler")}><Flag className="h-4 w-4" aria-hidden="true" />Signaler</button>

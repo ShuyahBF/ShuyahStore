@@ -9,7 +9,7 @@ les montre aux utilisateurs avec leurs avis et leurs téléchargements, et met e
 |---|---|
 | Visiteur (sans compte) | Parcourir et chercher le catalogue, lire la fiche d'une application (signature, autorisations expliquées en français, taille, version d'Android nécessaire), **télécharger**, reprendre un téléchargement coupé, signaler une application, **vérifier qu'un fichier APK reçu par WhatsApp ou Bluetooth est authentique** |
 | Utilisateur connecté | Donner une note et un avis (un par application) ; la mention « a téléchargé l'application » est posée par le serveur, pas déclarée |
-| Développeur (tout compte) | Déposer un APK, voir ce que ShuyahStore y a lu et vérifié, suivre la validation, déposer des mises à jour, modifier la fiche et l'icône, répondre aux avis |
+| Développeur (tout compte) | **Créer sa clé de signature permanente** (fabriquée dans le navigateur, téléchargée en JSON et en .p12, jamais envoyée au serveur), déposer un APK, voir ce que ShuyahStore y a lu et vérifié, suivre la validation, déposer des mises à jour, modifier la fiche et l'icône, répondre aux avis |
 | Administrateur | Examiner chaque version avant publication, publier ou refuser avec un motif, recommander, suspendre, autoriser un nouveau certificat (clé perdue), traiter les signalements, voir l'espace occupé et les appels les plus lents |
 
 ## La vérification de signature

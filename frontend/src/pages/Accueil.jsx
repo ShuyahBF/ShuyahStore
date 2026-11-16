@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Download, RefreshCw, Search, ShieldCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileSearch, RefreshCw, Search, ShieldCheck } from "lucide-react";
 import { Etoiles, IconeApp, Patientez, Recommandee } from "@/components/Communs";
 import { useToast } from "@/components/Toast";
 import { apiClient, messageErreur } from "@/lib/api";
@@ -58,6 +58,7 @@ export default function Accueil() {
         <h1 className="text-2xl font-bold sm:text-3xl">Des applications faites ici, <span className="text-ocre-clair">vérifiées</span> pour vous</h1>
         <p className="mt-2 max-w-2xl text-sm text-white/85">Chaque application est signée par son développeur et contrôlée par ShuyahStore avant publication. Vous voyez sa signature, ses autorisations en clair et sa taille avant de télécharger — sans créer de compte.</p>
         <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold"><ShieldCheck className="h-4 w-4 text-emerald-300" aria-hidden="true" />Signature et intégrité vérifiées à chaque dépôt</p>
+        <p className="mt-3"><Link to="/verifier" className="inline-flex items-center gap-2 rounded-lg bg-ocre px-3 py-2 text-sm font-semibold text-white hover:bg-orange-800"><FileSearch className="h-4 w-4" aria-hidden="true" />Vous avez reçu une application par WhatsApp ? Vérifiez-la avant de l'installer</Link></p>
       </section>
 
       {/* Recherche, catégorie, tri, actualisation */}
