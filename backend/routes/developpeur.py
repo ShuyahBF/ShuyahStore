@@ -10,6 +10,8 @@ Tout compte peut déposer. Garde-fous (règle 21 : ne pas s'appuyer sur la bonne
 from __future__ import annotations
 
 import asyncio
+import io
+import tempfile
 import uuid
 from datetime import date
 from typing import Optional
@@ -18,6 +20,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from pydantic import BaseModel, Field
 
 import apk
+import icone_apk
 import regles_qualite
 import referentiel
 import stockage
@@ -125,6 +128,8 @@ async def deposer(fichier: UploadFile = File(...), nom: str = Form(""), resume: 
     except Exception:
         await stockage.supprimer(fichier_id)
         raise
+    # Icône : lue dans l'APK (image ou icône adaptative convertie en SVG) tant que le développeur n'en a pas envoyé une à la main
+    await _poser_icone_depuis_apk(a, fichier.file)
     # Publication directe : seulement pour l'administrateur, avec un jeton qui l'autorise, et SANS alerte (hors clé de test) — sinon la version attend l'examen comme les autres
     publiee = False
     if user.get("role") == "admin" and (user.get("jeton_depot") or {}).get("publier_directement") and not [c for c in constats if c["code"] != "certificat_test"]:
@@ -132,6 +137,39 @@ async def deposer(fichier: UploadFile = File(...), nom: str = Form(""), resume: 
         await publier_version(v, a)
         v, a, publiee = {**v, "statut": "publiee"}, {**a, "statut": "publiee" if a["statut"] != "suspendue" else "suspendue"}, True
     return {"app": app_ecran(a, detail=True), "version": version_ecran(v), "certificat_debug": certificat_debug(certificats), "publiee_directement": publiee}
+
+
+async def _poser_icone_depuis_apk(a: dict, source, forcer: bool = False) -> bool:
+    """Lit l'icône de l'APK `source` (fichier ouvert) et l'enregistre comme icône de l'application. Par défaut, une icône envoyée à la main par
+    le développeur n'est JAMAIS remplacée (forcer=True : demande explicite du développeur). Ne lève jamais d'exception : rend vrai si une icône a été posée."""
+    try:
+        if not forcer and a.get("icone_id") and a.get("icone_source") != "apk":
+            return False
+        lue = await asyncio.to_thread(icone_apk.lire_icone, source, get_settings().icone_taille_max_ko * 1024)
+        if not lue:
+            return False
+        contenu, type_mime = lue
+        icone_id = await stockage.enregistrer(io.BytesIO(contenu), "icone", type_mime, len(contenu))
+        await db.applications.update_one({"id": a["id"]}, {"$set": {"icone_id": icone_id, "icone_maj": iso(), "icone_source": "apk"}})
+        await stockage.supprimer(a.get("icone_id"))
+        return True
+    except Exception:                                          # noqa: BLE001 — une icône ne doit jamais faire échouer un dépôt
+        return False
+
+
+@router.post("/apps/{app_id}/icone/depuis-apk")
+async def icone_depuis_apk(app_id: str, user: dict = Depends(get_current_user)):
+    """Reprend l'icône de la version la plus récente déjà déposée (applications publiées avant cette fonction, ou icône à rafraîchir)."""
+    a = await _mon_app(app_id, user)
+    v = await db.versions.find_one({"app_id": app_id, "fichier_id": {"$exists": True}}, SANS_ID, sort=[("version_code", -1)])
+    if not v:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucun fichier APK disponible pour cette application")
+    with tempfile.TemporaryFile() as tmp:                      # l'APK est relu sur disque (jamais en entier en mémoire)
+        async for bloc in stockage.lire(v["fichier_id"]):
+            await asyncio.to_thread(tmp.write, bloc)
+        if not await _poser_icone_depuis_apk(a, tmp, forcer=True):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "L'icône de cet APK n'est pas lisible automatiquement (dégradé, image intégrée…) : envoyez-la à la main")
+    return {"ok": True}
 
 
 class Fiche(BaseModel):
@@ -179,9 +217,8 @@ async def changer_icone(app_id: str, fichier: UploadFile = File(...), user: dict
     type_mime = next((t for debut, t in _IMAGES if contenu.startswith(debut)), None)
     if not type_mime or (type_mime == "image/webp" and contenu[8:12] != b"WEBP"):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Image non reconnue : PNG, JPEG ou WebP")
-    import io
     icone_id = await stockage.enregistrer(io.BytesIO(contenu), "icone", type_mime, len(contenu))
-    await db.applications.update_one({"id": app_id}, {"$set": {"icone_id": icone_id, "icone_maj": iso()}})
+    await db.applications.update_one({"id": app_id}, {"$set": {"icone_id": icone_id, "icone_maj": iso(), "icone_source": "manuel"}})
     await stockage.supprimer(a.get("icone_id"))
     return {"ok": True}
 
