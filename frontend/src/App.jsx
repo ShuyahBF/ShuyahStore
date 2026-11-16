@@ -6,6 +6,7 @@ import Compte from "@/pages/Compte";
 import Connexion from "@/pages/Connexion";
 import Developpeur from "@/pages/Developpeur";
 import FicheApp from "@/pages/FicheApp";
+import MesApplications from "@/pages/MesApplications";
 import Verifier from "@/pages/Verifier";
 
 // Pages du site. Le catalogue, les fiches et la vérification d'un fichier sont publics ; l'espace développeur et l'administration
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/app/:reference" element={<FicheApp />} />
         <Route path="/verifier" element={<Verifier />} />
         <Route path="/connexion" element={<Connexion />} />
+        <Route path="/mes-applications" element={<MesApplications />} />
         <Route path="/compte" element={<Compte />} />
         <Route path="/developpeur" element={<Developpeur />} />
         <Route path="/admin" element={<Admin />} />

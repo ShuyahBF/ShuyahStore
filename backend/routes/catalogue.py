@@ -85,6 +85,12 @@ async def icone(reference: str):
     return StreamingResponse(stockage.lire(f["id"]), media_type=f["type"], headers={"Cache-Control": "public, max-age=86400", "Content-Length": str(f["taille"])})
 
 
+def appareil_valide(valeur: str) -> Optional[str]:
+    """Identifiant d'appareil envoyé par l'application Android (UUID aléatoire créé à l'installation) ; None s'il est absent ou mal formé."""
+    v = str(valeur or "").strip().lower()
+    return v if re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", v) else None
+
+
 def _plage(entete: str, taille: int) -> Optional[tuple[int, int]]:
     """Lit « Range: bytes=début-fin » (reprise d'un téléchargement coupé, fréquent sur un réseau mobile). None si absent ou invalide."""
     m = re.fullmatch(r"bytes=(\d+)-(\d*)", (entete or "").strip())
@@ -112,10 +118,12 @@ async def telecharger(version_id: str, request: Request, user: Optional[dict] = 
     plage = _plage(request.headers.get("range", ""), taille)
     debut, fin = plage or (0, taille - 1)
     if debut == 0 and v.get("statut") == "publiee" and not prive:
-        origine = f"u:{user['id']}" if user else origine_anonyme(request)
+        appareil = appareil_valide(request.headers.get("x-appareil", ""))
+        origine = f"a:{appareil}" if appareil else f"u:{user['id']}" if user else origine_anonyme(request)
         try:
             await db.telechargements.insert_one({"id": str(uuid.uuid4()), "version_id": v["id"], "app_id": a["id"], "origine": origine,
-                                                 "user_id": user["id"] if user else None, "jour": date.today().isoformat(), "date": maintenant()})
+                                                 "user_id": user["id"] if user else None, "appareil_id": appareil,
+                                                 "jour": date.today().isoformat(), "date": maintenant()})
             await asyncio.gather(db.applications.update_one({"id": a["id"]}, {"$inc": {"telechargements": 1}}),
                                  db.versions.update_one({"id": v["id"]}, {"$inc": {"telechargements": 1}}))
         except DuplicateKeyError:
@@ -164,3 +172,56 @@ async def signaler(reference: str, data: Signalement, request: Request, user: Op
                                       "motif": data.motif, "details": texte(data.details, 1000), "auteur": user["nom"] if user else None,
                                       "connecte": bool(user), "statut": "ouvert", "cree_le": iso()})
     return {"ok": True}
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Application Android ShuyahStore (lot 4) : index des versions courantes, installations et désinstallations
+# ----------------------------------------------------------------------------------------------------------------------
+@router.get("/index", dependencies=[Depends(limiter_appels_publics)])
+async def index():
+    """Version courante de CHAQUE application publiée. L'application Android compare cette liste à ce qui est installé SUR le téléphone :
+    la liste des applications de l'utilisateur n'est donc jamais envoyée au serveur (vie privée)."""
+    apps = await db.applications.find({"statut": "publiee", "version_courante": {"$exists": True}},
+                                      {"_id": 0, "id": 1, "paquet": 1, "nom": 1, "version_courante": 1, "certificats_sha256": 1, "icone_id": 1, "icone_maj": 1}).to_list(3000)
+    return {"apps": [{"id": a["id"], "paquet": a["paquet"], "nom": a["nom"], "version": a["version_courante"], "certificats_sha256": a.get("certificats_sha256") or [],
+                      "a_icone": bool(a.get("icone_id")), "icone_version": a.get("icone_maj") or ""} for a in apps]}
+
+
+class Evenement(BaseModel):
+    appareil: str = Field(max_length=40)
+    type: str = Field(pattern="^(installation|desinstallation)$")
+    version_id: str = Field("", max_length=40)                    # installation : version installée
+    paquet: str = Field("", max_length=200)                       # désinstallation : paquet retiré
+
+
+@router.post("/appareils/evenement", dependencies=[Depends(limiter_appels_publics)])
+async def evenement(data: Evenement):
+    """Installation ou désinstallation signalée par l'application Android.
+    Authenticité (règle 21) : une installation n'est comptée que si le SERVEUR a lui-même vu cet appareil télécharger cette version ;
+    une désinstallation n'est comptée que pour un appareil dont l'installation a été comptée. Un appareil compte une seule fois par application."""
+    appareil = appareil_valide(data.appareil)
+    if not appareil:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Identifiant d'appareil invalide")
+    if data.type == "installation":
+        v = await db.versions.find_one({"id": data.version_id}, SANS_ID)
+        if not v or not await db.telechargements.find_one({"version_id": data.version_id, "appareil_id": appareil}, {"_id": 1}):
+            raise HTTPException(status.HTTP_409_CONFLICT, "Installation non reconnue : cette version n'a pas été téléchargée par cet appareil")
+        existante = await db.installations.find_one({"appareil_id": appareil, "app_id": v["app_id"]}, SANS_ID)
+        if not existante:
+            try:
+                await db.installations.insert_one({"appareil_id": appareil, "app_id": v["app_id"], "installee": True, "version_code": v["version_code"], "depuis": iso(), "maj_le": iso()})
+            except DuplicateKeyError:
+                return {"ok": True, "compte": False}
+            await db.applications.update_one({"id": v["app_id"]}, {"$inc": {"installations": 1, "installations_actives": 1}})
+            return {"ok": True, "compte": True}
+        await db.installations.update_one({"appareil_id": appareil, "app_id": v["app_id"]}, {"$set": {"installee": True, "version_code": v["version_code"], "maj_le": iso()}})
+        if not existante.get("installee"):                         # réinstallation après une désinstallation : de nouveau active
+            await db.applications.update_one({"id": v["app_id"]}, {"$inc": {"installations_actives": 1}})
+        return {"ok": True, "compte": False}
+    a = await db.applications.find_one({"paquet": data.paquet}, {"_id": 0, "id": 1})
+    if not a:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Application introuvable")
+    res = await db.installations.update_one({"appareil_id": appareil, "app_id": a["id"], "installee": True}, {"$set": {"installee": False, "maj_le": iso()}})
+    if res.modified_count:
+        await db.applications.update_one({"id": a["id"]}, {"$inc": {"desinstallations": 1, "installations_actives": -1}})
+    return {"ok": True, "compte": bool(res.modified_count)}
