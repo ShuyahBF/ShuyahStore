@@ -15,6 +15,14 @@ export function AuthProvider({ children }) {
     if (data.a2f_requise) return { a2f_requise: true };
     setUser(data.user); return data.user;
   }, []);
+  /** Connexion par clé d'accès (empreinte, visage ou code du téléphone) : déjà une authentification forte, aucun second code n'est demandé. */
+  const connecterParCleAcces = useCallback(async () => {
+    const { signerAvecCleAcces } = await import("@/lib/passkeys");
+    const { data: o } = await apiClient.post("/auth/passkey/options-connexion");
+    const credential = await signerAvecCleAcces(o.options);
+    const { data } = await apiClient.post("/auth/passkey/connexion", { defi_id: o.defi_id, credential });
+    setUser(data.user); return data.user;
+  }, []);
   /** Relit la fiche du compte (après un réglage de sécurité). */
   const actualiser = useCallback(async () => { const { data } = await apiClient.get("/auth/moi"); setUser(data); return data; }, []);
   const inscrire = useCallback(async (nom, email, motDePasse) => {
@@ -22,7 +30,7 @@ export function AuthProvider({ children }) {
     setUser(data.user); return data.user;
   }, []);
   const deconnecter = useCallback(async () => { try { await apiClient.post("/auth/deconnexion"); } finally { setUser(null); } }, []);
-  const valeur = useMemo(() => ({ user, connecter, inscrire, deconnecter, actualiser }), [user, connecter, inscrire, deconnecter, actualiser]);
+  const valeur = useMemo(() => ({ user, connecter, connecterParCleAcces, inscrire, deconnecter, actualiser }), [user, connecter, connecterParCleAcces, inscrire, deconnecter, actualiser]);
   return <AuthContext.Provider value={valeur}>{children}</AuthContext.Provider>;
 }
 

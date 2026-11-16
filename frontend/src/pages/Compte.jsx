@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Copy, Download, Fingerprint, LogIn, ShieldCheck, ShieldOff, ShieldPlus, X } from "lucide-react";
 import ChampMotDePasse from "@/components/ChampMotDePasse";
+import ClesAcces from "@/components/ClesAcces";
 import VerificationEmail from "@/components/VerificationEmail";
 import { Patientez } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -96,6 +97,8 @@ export default function Compte() {
       </section>
 
       <VerificationEmail />
+
+      <ClesAcces />
 
       <section className="card space-y-3" data-testid="bloc-a2f">
         <h2 className="text-lg font-bold">Double authentification</h2>

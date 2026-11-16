@@ -1,18 +1,19 @@
 import { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { KeyRound, LogIn, ShieldCheck, Store, UserPlus } from "lucide-react";
+import { Fingerprint, KeyRound, LogIn, ShieldCheck, Store, UserPlus } from "lucide-react";
 import ChampMotDePasse from "@/components/ChampMotDePasse";
 import { EtatServeur } from "@/components/Layout";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { messageErreur } from "@/lib/api";
 import { EXEMPLE_EMAIL, EXEMPLE_NOM } from "@/lib/format";
+import { clesAccesDisponibles, messageCleAcces } from "@/lib/passkeys";
 import { libelleVersion } from "@/version";
 
 // Page de connexion CENTRÉE (carte avec logo), avec l'état du serveur et la version. Le même écran sert à créer un compte.
 // Un compte n'est nécessaire que pour donner un avis ou déposer une application — jamais pour télécharger.
 export default function Connexion() {
-  const { user, connecter, inscrire } = useAuth();
+  const { user, connecter, connecterParCleAcces, inscrire } = useAuth();
   const toast = useToast();
   const naviguer = useNavigate();
   const [params] = useSearchParams();
@@ -24,6 +25,11 @@ export default function Connexion() {
   const suite = params.get("suite") || "/";
   if (user) return <Navigate to={suite} replace />;
 
+  const parCleAcces = async () => {
+    setOccupe(true); toast.info("Validez avec votre empreinte, votre visage ou le code du téléphone…");
+    try { const u = await connecterParCleAcces(); toast.succes(`Bienvenue ${u.nom}`); naviguer(suite, { replace: true }); }
+    catch (err) { toast.erreur(messageCleAcces(err) || messageErreur(err, "Connexion par clé d'accès impossible")); } finally { setOccupe(false); }
+  };
   const champ = (cle) => (e) => setF({ ...f, [cle]: e.target.value });
   const valider = async (e) => {
     e.preventDefault();
@@ -66,6 +72,7 @@ export default function Connexion() {
         <button type="submit" className="btn-primary w-full" disabled={occupe}>
           {occupe ? <span className="jauge jauge-petite border-white/40 border-t-white" aria-hidden="true" /> : creation ? <UserPlus className="h-4 w-4" aria-hidden="true" /> : <LogIn className="h-4 w-4" aria-hidden="true" />}
           {occupe ? "Patientez…" : creation ? "Créer mon compte" : "Se connecter"}</button>
+        {!creation && clesAccesDisponibles() && <button type="button" className="btn-vert w-full" disabled={occupe} onClick={parCleAcces} data-testid="connexion-cle-acces"><Fingerprint className="h-4 w-4" aria-hidden="true" />Se connecter avec mon empreinte (clé d'accès)</button>}
         <button type="button" className="btn-outline w-full" onClick={() => { setCreation((c) => !c); setEtape2(false); setCode(""); }}>
           {creation ? <LogIn className="h-4 w-4" aria-hidden="true" /> : <UserPlus className="h-4 w-4" aria-hidden="true" />}{creation ? "J'ai déjà un compte" : "Créer un compte"}</button>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600"><EtatServeur /><span>{libelleVersion()}</span></div>

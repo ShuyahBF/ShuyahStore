@@ -18,7 +18,7 @@ import version_plateforme
 from config import get_settings
 from db import db, ensure_indexes
 from outils import adresse_ip, iso
-from routes import admin, auth, avis, catalogue, developpeur
+from routes import admin, auth, avis, catalogue, developpeur, passkeys
 from securite import hash_password
 
 settings = get_settings()
@@ -32,7 +32,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.frontend_origins, allo
 app.middleware("http")(mesures.mesurer)
 
 api = APIRouter(prefix="/api")
-for module in (auth, catalogue, avis, developpeur, admin):
+for module in (auth, passkeys, catalogue, avis, developpeur, admin):
     api.include_router(module.router)
 
 
