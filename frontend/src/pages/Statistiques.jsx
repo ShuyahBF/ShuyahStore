@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, BarChart3, Mail, RefreshCw, Send } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, FileDown, Mail, MessageCircle, RefreshCw, Send } from "lucide-react";
 import { BarresSerie, Tendance } from "@/components/Graphique";
 import { Patientez } from "@/components/Communs";
 import { useToast } from "@/components/Toast";
@@ -32,9 +32,16 @@ export default function Statistiques() {
     try { await apiClient.put("/dev/stats/preferences", { actif }); toast.succes(actif ? "Rapport hebdomadaire activé" : "Rapport hebdomadaire désactivé"); await charger(); }
     catch (err) { toast.erreur(messageErreur(err, "Réglage non enregistré")); } finally { setOccupe(false); }
   };
+  const telechargerPdf = async () => {
+    toast.info("Préparation du PDF en cours…");
+    try { const r = await apiClient.get("/dev/stats/pdf", { responseType: "blob" });
+      const lien = document.createElement("a"); lien.href = URL.createObjectURL(r.data); lien.download = "statistiques-shuyahstore.pdf"; lien.click(); URL.revokeObjectURL(lien.href);
+      toast.succes("PDF téléchargé"); }
+    catch (err) { toast.erreur(messageErreur(err, "PDF indisponible")); }
+  };
   const envoyerMaintenant = async () => {
     setOccupe(true); toast.info("Envoi du rapport en cours…");
-    try { await apiClient.post("/dev/stats/envoyer-moi"); toast.succes("Rapport envoyé à votre adresse e-mail"); }
+    try { await apiClient.post("/dev/stats/envoyer-moi"); toast.succes("Rapport envoyé"); }
     catch (err) { toast.erreur(messageErreur(err, "Rapport non envoyé")); } finally { setOccupe(false); }
   };
 
@@ -51,11 +58,11 @@ export default function Statistiques() {
 
       {/* Rapport hebdomadaire par e-mail */}
       <section className="card flex flex-wrap items-center gap-3 text-sm">
-        <Mail className="h-5 w-5 text-purple-700" aria-hidden="true" />
-        <p className="min-w-[16rem] flex-1">Rapport hebdomadaire par e-mail (le lundi) : <b>{donnees.stats_hebdo ? "activé" : "désactivé"}</b>.
-          {!donnees.email_configure && <span className="text-amber-800"> L'envoi d'e-mails n'est pas encore configuré sur ce serveur.</span>}</p>
-        <button type="button" className="btn-outline" disabled={occupe} onClick={basculerRapport}><Mail className="h-4 w-4 text-purple-700" aria-hidden="true" />{donnees.stats_hebdo ? "Désactiver" : "Activer"}</button>
-        <button type="button" className="btn-outline" disabled={occupe || !donnees.email_configure} onClick={envoyerMaintenant}><Send className="h-4 w-4 text-primary" aria-hidden="true" />Me l'envoyer maintenant</button>
+        <MessageCircle className="h-5 w-5 text-emerald-700" aria-hidden="true" />
+        <p className="min-w-[16rem] flex-1">Rapport hebdomadaire (le lundi) : <b>{donnees.stats_hebdo ? "activé" : "désactivé"}</b>. Envoyé en <b>PDF sur WhatsApp</b>{donnees.whatsapp_configure ? (donnees.whatsapp_verifie ? "" : <span className="text-amber-800"> (votre numéro doit d'abord être vérifié dans « Mon Compte »)</span>) : <span className="text-amber-800"> (l'envoi WhatsApp n'est pas encore activé sur ce serveur)</span>}{donnees.email_configure ? " et par e-mail" : ""}.</p>
+        <button type="button" className="btn-outline" disabled={occupe} onClick={telechargerPdf}><FileDown className="h-4 w-4 text-primary" aria-hidden="true" />Télécharger le PDF</button>
+        <button type="button" className="btn-outline" disabled={occupe} onClick={basculerRapport}><Mail className="h-4 w-4 text-purple-700" aria-hidden="true" />{donnees.stats_hebdo ? "Désactiver le rapport" : "Activer le rapport"}</button>
+        <button type="button" className="btn-outline" disabled={occupe || !(donnees.email_configure || donnees.whatsapp_configure)} onClick={envoyerMaintenant}><Send className="h-4 w-4 text-primary" aria-hidden="true" />Me l'envoyer maintenant</button>
       </section>
 
       {!donnees.apps.length ? <p className="card text-sm text-gray-600">Aucune application pour l'instant.</p> : donnees.apps.map((a) => (

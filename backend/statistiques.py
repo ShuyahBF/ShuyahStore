@@ -21,6 +21,8 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 import email_envoi
+import liluvine_wa
+import statistiques_pdf
 from config import get_settings
 from db import SANS_ID, db
 
@@ -215,9 +217,28 @@ def libelle_semaine(jour: Optional[date] = None) -> str:
     return f"Semaine du {debut.strftime('%d/%m/%Y')} au {fin.strftime('%d/%m/%Y')}"
 
 
-async def simuler_rapport(a: dict, destinataire: str) -> dict:
+def numero_whatsapp_verifie(utilisateur: dict) -> Optional[str]:
+    """Numéro WhatsApp VÉRIFIÉ du compte (jamais un numéro non vérifié : on n'envoie pas de rapport à un numéro saisi sans preuve), sinon None."""
+    n = utilisateur.get("whatsapp")
+    return n if n and utilisateur.get("whatsapp_verifie_pour") == n else None
+
+
+def message_whatsapp(nom: str, semaine: str, simulation: bool = False) -> str:
+    return (("[SIMULATION] " if simulation else "") + f"Bonjour {nom}, voici votre rapport ShuyahStore ({semaine}) en PDF : "
+            "téléchargements, installations, avis et tendances de vos applications.")
+
+
+async def pdf_du_developpeur(dev_id: str, nom: str, simulation: bool = False) -> Optional[bytes]:
+    """PDF du rapport de la semaine pour un développeur ; None s'il n'a aucune application."""
+    bilans = await bilans_du_developpeur(dev_id)
+    return statistiques_pdf.rapport_pdf(nom, bilans, libelle_semaine(), simulation) if bilans else None
+
+
+async def simuler_rapport(a: dict, admin: dict) -> dict:
     """SIMULATION (administration) : compose le rapport hebdomadaire d'UNE application, le marque « simulation » et l'envoie au seul administrateur
-    qui le demande (jamais au développeur). Rend { envoye, sujet, html } : l'aperçu reste affichable même si la messagerie n'est pas configurée."""
+    qui le demande (jamais au développeur), par e-mail ET en PDF sur WhatsApp quand ces canaux sont configurés.
+    Rend { envoye_email, envoye_whatsapp, erreur_whatsapp, sujet, html } : l'aperçu reste affichable même sans aucun canal configuré."""
+    destinataire = admin.get("email", "")
     serie = await serie_quotidienne(a["id"])
     site = (get_settings().public_site_url or "").rstrip("/")
     texte, corps = rapport_html(a.get("nom_developpeur", ""), [(await analyser_app(a, serie), serie)], libelle_semaine(), site)
@@ -226,23 +247,45 @@ async def simuler_rapport(a: dict, destinataire: str) -> dict:
     corps = corps.replace('<h2', bandeau + '<h2', 1)
     sujet = f"[Simulation] ShuyahStore : statistiques de {a['nom']}"
     envoye = await email_envoi.envoyer(destinataire, sujet, "SIMULATION\n\n" + texte, corps) if destinataire else False
-    return {"envoye": envoye, "sujet": sujet, "html": corps}
+    # WhatsApp : le même rapport en PDF, au numéro VÉRIFIÉ de l'administrateur
+    envoye_wa, erreur_wa = False, None
+    numero = numero_whatsapp_verifie(admin)
+    if not liluvine_wa.configure():
+        erreur_wa = "WhatsApp n'est pas configuré sur ce serveur"
+    elif not numero:
+        erreur_wa = "Votre numéro WhatsApp n'est pas encore vérifié (Mon Compte)"
+    else:
+        pdf = statistiques_pdf.rapport_pdf(a.get("nom_developpeur", ""), [(await analyser_app(a, serie), serie)], libelle_semaine(), simulation=True)
+        res = await liluvine_wa.envoyer_whatsapp(numero, message_whatsapp(admin.get("nom", ""), libelle_semaine(), True), document=pdf,
+                                                 nom_fichier=f"statistiques-{a['paquet']}.pdf")
+        envoye_wa, erreur_wa = res["ok"], res["erreur"]
+    return {"envoye": envoye, "envoye_whatsapp": envoye_wa, "erreur_whatsapp": erreur_wa, "sujet": sujet, "html": corps}
 
 
-async def envoyer_rapport(dev: dict) -> bool:
-    """Compose et envoie le rapport à un développeur ; vrai si le serveur de messagerie l'a accepté."""
+async def envoyer_rapport(dev: dict) -> dict:
+    """Envoie le rapport à un développeur : PDF sur WhatsApp (numéro vérifié) ET e-mail HTML, chacun si son canal est configuré.
+    Rend { whatsapp, email } (booléens) ; rien n'est envoyé s'il n'a aucune application."""
     bilans = await bilans_du_developpeur(dev["id"])
-    if not bilans or not dev.get("email"):
-        return False
-    site = (get_settings().public_site_url or "").rstrip("/")
-    texte, corps = rapport_html(dev.get("nom", ""), bilans, libelle_semaine(), site)
-    return await email_envoi.envoyer(dev["email"], "ShuyahStore : votre semaine en chiffres", texte, corps)
+    sortie = {"whatsapp": False, "email": False}
+    if not bilans:
+        return sortie
+    semaine = libelle_semaine()
+    numero = numero_whatsapp_verifie(dev)
+    if numero and liluvine_wa.configure():
+        pdf = statistiques_pdf.rapport_pdf(dev.get("nom", ""), bilans, semaine)
+        res = await liluvine_wa.envoyer_whatsapp(numero, message_whatsapp(dev.get("nom", ""), semaine), document=pdf, nom_fichier="statistiques-shuyahstore.pdf")
+        sortie["whatsapp"] = res["ok"]
+    if dev.get("email") and email_envoi.configure():
+        site = (get_settings().public_site_url or "").rstrip("/")
+        texte, corps = rapport_html(dev.get("nom", ""), bilans, semaine, site)
+        sortie["email"] = await email_envoi.envoyer(dev["email"], "ShuyahStore : votre semaine en chiffres", texte, corps)
+    return sortie
 
 
 async def envoyer_rapports_de_la_semaine(aujourd_hui: Optional[date] = None) -> int:
     """Envoie à chaque développeur le rapport de la semaine écoulée, UNE seule fois (clé unique « développeur:semaine » : sûr même avec
     plusieurs instances ou un redémarrage). Un développeur peut le désactiver (champ stats_hebdo). Rend le nombre d'envois réussis."""
-    if not email_envoi.configure():
+    if not (email_envoi.configure() or liluvine_wa.configure()):
         return 0
     jour = aujourd_hui or date.today()
     annee, semaine, _ = jour.isocalendar()
@@ -256,7 +299,7 @@ async def envoyer_rapports_de_la_semaine(aujourd_hui: Optional[date] = None) -> 
             await db.envois_stats.insert_one({"cle": cle, "cree_le": datetime.now(timezone.utc).isoformat()})
         except Exception:                                          # noqa: BLE001 — clé déjà prise : rapport déjà envoyé cette semaine
             continue
-        if await envoyer_rapport(dev):
+        if any((await envoyer_rapport(dev)).values()):
             envois += 1
         else:
             await db.envois_stats.delete_one({"cle": cle})           # échec : sera retenté au prochain passage

@@ -123,7 +123,20 @@ async def simuler_statistiques(app_id: str, user: dict = Depends(get_current_use
     a = await db.applications.find_one({"id": app_id}, SANS_ID)
     if not a:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Application introuvable")
-    return await statistiques.simuler_rapport(a, user.get("email", ""))
+    return await statistiques.simuler_rapport(a, user)
+
+
+@router.get("/apps/{app_id}/statistiques.pdf")
+async def statistiques_pdf_app(app_id: str):
+    """PDF des statistiques d'UNE application, à télécharger (aperçu de ce qui est envoyé par WhatsApp)."""
+    import statistiques_pdf
+    from fastapi import Response
+    a = await db.applications.find_one({"id": app_id}, SANS_ID)
+    if not a:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Application introuvable")
+    serie = await statistiques.serie_quotidienne(a["id"])
+    pdf = statistiques_pdf.rapport_pdf(a.get("nom_developpeur", ""), [(await statistiques.analyser_app(a, serie), serie)], statistiques.libelle_semaine(), simulation=True)
+    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="statistiques-{a["paquet"]}.pdf"'})
 
 
 @router.get("/apps/{app_id}/versions")
