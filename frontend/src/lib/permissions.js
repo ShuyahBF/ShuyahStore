@@ -32,4 +32,3 @@ export function pictogrammeAutorisation(nom) {
   if (String(nom).includes("c2dm")) return Mail;                      // notifications poussées (Firebase)
   return Shield;
 }
-export { Lock };
