@@ -19,7 +19,11 @@ import version_plateforme
 from config import get_settings
 from db import db, ensure_indexes
 from outils import adresse_ip, iso
+<<<<<<< Updated upstream
 from routes import admin, auth, avis, catalogue, developpeur, passkeys, statistiques as routes_statistiques
+=======
+from routes import admin, auth, avis, catalogue, developpeur, passkeys, sauvegardes
+>>>>>>> Stashed changes
 from securite import hash_password
 
 settings = get_settings()
@@ -33,7 +37,11 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.frontend_origins, allo
 app.middleware("http")(mesures.mesurer)
 
 api = APIRouter(prefix="/api")
+<<<<<<< Updated upstream
 for module in (auth, passkeys, catalogue, avis, developpeur, admin, routes_statistiques):
+=======
+for module in (auth, passkeys, catalogue, avis, developpeur, admin, sauvegardes):
+>>>>>>> Stashed changes
     api.include_router(module.router)
 
 

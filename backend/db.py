@@ -40,6 +40,7 @@ async def ensure_indexes() -> None:
     await db.users.create_index("id", unique=True)
     await db.users.create_index("email", unique=True)
     # Applications : un nom de paquet = une seule fiche ; listes par statut, par développeur, par catégorie
+    await db.sauvegardes.create_index("id", unique=True)                    # sauvegardes en ligne chiffrées (lot 9)
     await db.applications.create_index("id", unique=True)
     await db.applications.create_index("paquet", unique=True)
     await db.applications.create_index([("statut", 1), ("recommandee", -1), ("maj_le", -1)])

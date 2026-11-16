@@ -64,3 +64,7 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
 - Jetons de dépôt (lot 8) : un jeton `ssd_…` permet de DÉPOSER des APK depuis un script (`/api/dev/depot`, `/api/dev/apps`), rien d'autre. Création / révocation dans « Mon Compte » (mot de passe redemandé,
   `frontend/src/components/JetonsDepot.jsx`, `backend/routes/auth.py`). Seule l'empreinte est gardée, le jeton n'est montré qu'une fois. « Publication directe » : administrateur seulement, et seulement
   pour un dépôt sans alerte (hors clé de test) ; sinon la validation de l'administrateur reste obligatoire.
+
+- Sauvegardes en ligne chiffrées (lot 9, 16/11/2026) : `backend/routes/sauvegardes.py` — coffre anonyme à deux clés pour les applications (Personnel de maison). Le téléphone chiffre TOUT (AES-256-GCM, clé
+  dérivée de la phrase secrète de l'utilisateur) et n'envoie que des octets illisibles + un identifiant et un jeton DÉRIVÉS de la phrase ; le serveur ne garde que l'empreinte du jeton. Deux versions
+  gardées (courante + précédente, comme auRor), 60 Mo au plus, 6 envois par heure et par adresse IP, 3000 sauvegardes au plus. Même principe que la sauvegarde en ligne d'auRor, sans compte.
