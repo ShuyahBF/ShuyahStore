@@ -18,7 +18,7 @@ from db import SANS_ID, db
 from outils import iso
 from routes.avis import recalculer_note
 from routes.commun import app_ecran, texte, version_ecran
-from securite import require_admin
+from securite import get_current_user, require_admin
 
 router = APIRouter(prefix="/admin", tags=["Administration"], dependencies=[Depends(require_admin)])
 VERSIONS_CONSERVEES = 3          # valeur PAR DÉFAUT : fichiers des versions publiées gardés par application (la base a une taille limitée)
@@ -114,6 +114,16 @@ async def analyses():
     series = await asyncio.gather(*[statistiques.serie_quotidienne(a["id"]) for a in apps])
     bilans = await asyncio.gather(*[statistiques.analyser_app(a, s) for a, s in zip(apps, series)])
     return {"apps": [{**b, "developpeur": a.get("nom_developpeur")} for a, b in zip(apps, bilans)]}
+
+
+@router.post("/apps/{app_id}/simuler-statistiques")
+async def simuler_statistiques(app_id: str, user: dict = Depends(get_current_user)):
+    """Simule en un clic l'envoi des statistiques d'UNE application : le rapport est envoyé à l'administrateur (jamais au développeur) et rendu
+    en aperçu. Sans messagerie configurée, l'aperçu est quand même rendu (envoye = false)."""
+    a = await db.applications.find_one({"id": app_id}, SANS_ID)
+    if not a:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Application introuvable")
+    return await statistiques.simuler_rapport(a, user.get("email", ""))
 
 
 @router.get("/apps/{app_id}/versions")

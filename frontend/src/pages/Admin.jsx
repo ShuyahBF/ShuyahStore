@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, BadgeCheck, Ban, BarChart3, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Save, Search, ShieldAlert, Trash2, X, XCircle } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Ban, BarChart3, Send, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Save, Search, ShieldAlert, Trash2, X, XCircle } from "lucide-react";
 import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import { IconeApp, Patientez, Recommandee, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -31,6 +31,7 @@ export default function Admin() {
   const [versionsApp, setVersionsApp] = useState(null);          // versions de l'application réglée (null = chargement)
   const [aRetirer, setARetirer] = useState(null);                // version publiée dont on prépare le retrait (fenêtre dans la fenêtre)
   const [motifRetrait, setMotifRetrait] = useState("");
+  const [apercu, setApercu] = useState(null);                // aperçu du rapport de statistiques simulé (fenêtre)
   const [analyses, setAnalyses] = useState(null);              // analyses de toutes les applications (rythme des mises à jour, avis, désinstallations…)
   const [params, setParams] = useState(null);                  // réglages de la plateforme (lus sur le serveur)
   const [nbVersions, setNbVersions] = useState("");              // saisie : versions d'APK conservées par application
@@ -91,6 +92,13 @@ export default function Admin() {
       toast.succes(`Réglage enregistré : ${r.data.versions_conservees} version(s) conservée(s) par application` + (r.data.archivees ? `, ${r.data.archivees} ancienne(s) version(s) archivée(s)` : ""));
       await charger(); }
     catch (err) { toast.erreur(messageErreur(err, "Réglage non enregistré")); } finally { setOccupe(false); }
+  };
+  // Simule en un clic l'envoi des statistiques d'une application : envoyé à l'administrateur seulement, aperçu affiché
+  const simulerStatistiques = async (a) => {
+    toast.info(`Simulation des statistiques de « ${a.nom} » en cours…`);
+    try { const r = await apiClient.post(`/admin/apps/${a.id}/simuler-statistiques`); setApercu({ nom: a.nom, ...r.data });
+      toast.succes(r.data.envoye ? "Rapport simulé envoyé à votre adresse e-mail" : "Aperçu prêt (l'envoi d'e-mails n'est pas configuré : rien n'est parti)"); }
+    catch (err) { toast.erreur(messageErreur(err, "Simulation impossible")); }
   };
   const traiter = async (s) => {
     toast.info("Clôture du signalement en cours…");
@@ -185,7 +193,7 @@ export default function Admin() {
                 <ThTri cle="jours_depuis_maj" {...triAnalyses} droite>Dernière mise à jour (jours)</ThTri><ThTri cle="intervalle_moyen_jours" {...triAnalyses} droite>Rythme (jours)</ThTri>
                 <ThTri cle="delai_validation_heures" {...triAnalyses} droite>Validation (h)</ThTri><ThTri cle="note_moyenne" {...triAnalyses} droite>Note</ThTri>
                 <ThTri cle="taux_desinstallation" {...triAnalyses} droite>Désinstallées</ThTri><ThTri cle="telechargements" {...triAnalyses} droite>Téléchargements</ThTri>
-                <ThTri cle="points" {...triAnalyses} droite>Points d'attention</ThTri></tr></thead>
+                <ThTri cle="points" {...triAnalyses} droite>Points d'attention</ThTri><th>Statistiques</th></tr></thead>
               <tbody>{triAnalyses.triees.map((a) => (
                 <tr key={a.id}>
                   <td className="font-semibold">{a.nom}</td><td>{a.developpeur}</td>
@@ -196,6 +204,7 @@ export default function Admin() {
                   <td className={`text-right ${a.taux_desinstallation > 0.4 ? "font-semibold text-red-700" : ""}`}>{a.taux_desinstallation === null ? "—" : `${Math.round(a.taux_desinstallation * 100)} %`}</td>
                   <td className="text-right">{nombre(a.telechargements)}{a.telechargements_ecartes ? <span className="text-xs text-amber-800"> (+{a.telechargements_ecartes} écartés)</span> : null}</td>
                   <td className="text-right">{a.points_attention.length ? <span className="inline-flex items-center gap-1 text-amber-800" title={a.points_attention.join("\n")}><AlertTriangle className="h-4 w-4" aria-hidden="true" />{a.points_attention.length}</span> : <span className="text-gray-500">0</span>}</td>
+                  <td><button type="button" className="btn-outline btn-sm" title="Simuler l'envoi des statistiques (vous seul le recevez)" aria-label={`Simuler l'envoi des statistiques de ${a.nom}`} onClick={() => simulerStatistiques(a)}><Send className="h-4 w-4 text-sky-700" aria-hidden="true" />Simuler</button></td>
                 </tr>))}</tbody>
             </table>
           </div>
@@ -265,6 +274,16 @@ export default function Admin() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Fenêtre : aperçu du rapport de statistiques simulé (contenu isolé dans un cadre sans script) */}
+      <Modal ouvert={!!apercu} titre={`Simulation : statistiques de « ${apercu?.nom || ""} »`} onFermer={() => setApercu(null)} large>
+        {apercu && (
+          <div className="space-y-3 text-sm">
+            <p className={`rounded-lg p-2 ${apercu.envoye ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900"}`}>{apercu.envoye ? "Ce rapport a été envoyé à votre adresse e-mail (vous seul l'avez reçu)." : "Aucun e-mail n'est parti : l'envoi n'est pas configuré sur ce serveur. Voici l'aperçu."}</p>
+            <iframe title="Aperçu du rapport" sandbox="" srcDoc={apercu.html} className="h-[28rem] w-full rounded-lg border border-gray-200 bg-white" />
+            <button type="button" className="btn-outline" onClick={() => setApercu(null)}><X className="h-4 w-4" aria-hidden="true" />Fermer</button>
+          </div>)}
       </Modal>
 
       {/* Fenêtre : réglages d'une application */}

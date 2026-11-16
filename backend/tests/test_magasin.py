@@ -375,3 +375,12 @@ def test_rapport_hebdomadaire_envoye_une_seule_fois_par_semaine(client, compte, 
     assert asyncio.run(statistiques.envoyer_rapports_de_la_semaine(lundi)) >= 1
     assert asyncio.run(statistiques.envoyer_rapports_de_la_semaine(lundi)) == 0           # déjà parti cette semaine
     assert any("votre semaine" in sujet for _, sujet in envoyes)
+
+
+def test_simulation_des_statistiques_en_un_clic(client, compte, admin):
+    """L'administrateur simule l'envoi pour UNE application : aperçu rendu même sans messagerie ; un développeur n'y a pas accès."""
+    _, h, app, _, _ = application_publiee(client, compte, admin, code=1)
+    r = client.post(f"/api/admin/apps/{app['id']}/simuler-statistiques", headers=admin)
+    assert r.status_code == 200 and r.json()["envoye"] is False and "SIMULATION" in r.json()["html"] and app["nom"] in r.json()["html"]
+    assert client.post("/api/admin/apps/inconnue/simuler-statistiques", headers=admin).status_code == 404
+    assert client.post(f"/api/admin/apps/{app['id']}/simuler-statistiques", headers=h).status_code in (401, 403)
