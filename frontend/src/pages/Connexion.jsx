@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { LogIn, Store, UserPlus } from "lucide-react";
+import { KeyRound, LogIn, ShieldCheck, Store, UserPlus } from "lucide-react";
 import ChampMotDePasse from "@/components/ChampMotDePasse";
 import { EtatServeur } from "@/components/Layout";
 import { useToast } from "@/components/Toast";
@@ -19,6 +19,8 @@ export default function Connexion() {
   const [creation, setCreation] = useState(false);
   const [f, setF] = useState({ nom: "", email: "", mdp: "", mdp2: "" });
   const [occupe, setOccupe] = useState(false);
+  const [etape2, setEtape2] = useState(false);                   // double authentification : le code est demandé après le mot de passe
+  const [code, setCode] = useState(""); const [secours, setSecours] = useState(false);
   const suite = params.get("suite") || "/";
   if (user) return <Navigate to={suite} replace />;
 
@@ -28,7 +30,8 @@ export default function Connexion() {
     if (creation && f.mdp !== f.mdp2) { toast.erreur("Les deux mots de passe ne sont pas identiques"); return; }
     setOccupe(true); toast.info(creation ? "Création du compte en cours…" : "Connexion en cours… Patientez…");
     try {
-      const u = creation ? await inscrire(f.nom, f.email, f.mdp) : await connecter(f.email, f.mdp);
+      const u = creation ? await inscrire(f.nom, f.email, f.mdp) : await connecter(f.email, f.mdp, etape2 ? code : "");
+      if (u.a2f_requise) { setEtape2(true); toast.info("Mot de passe accepté. Saisissez maintenant votre code de double authentification."); return; }
       toast.succes(`Bienvenue ${u.nom}`); naviguer(suite, { replace: true });
     } catch (err) { toast.erreur(messageErreur(err, creation ? "Création impossible" : "Connexion impossible")); } finally { setOccupe(false); }
   };
@@ -49,10 +52,21 @@ export default function Connexion() {
           <ChampMotDePasse id="c-mdp" required minLength={creation ? 8 : 1} maxLength={128} value={f.mdp} onChange={champ("mdp")} autoComplete={creation ? "new-password" : "current-password"} /></div>
         {creation && <div><label className="label" htmlFor="c-mdp2">Répétez le mot de passe</label>
           <ChampMotDePasse id="c-mdp2" required maxLength={128} value={f.mdp2} onChange={champ("mdp2")} autoComplete="new-password" /></div>}
+        {/* Étape 2 : code à usage unique (pas d'œil : ce n'est pas un secret durable, règle 22) ou code de secours */}
+        {etape2 && !creation && (
+          <div className="space-y-2 rounded-lg border-2 border-primary/40 bg-blue-50 p-3" data-testid="etape-a2f">
+            <p className="flex items-center gap-2 text-sm font-semibold text-primary"><ShieldCheck className="h-4 w-4" aria-hidden="true" />Double authentification</p>
+            <label className="label" htmlFor="c-code">{secours ? "Code de secours (XXXXX-XXXXX)" : "Code à 6 chiffres de votre application d'authentification"}</label>
+            <input id="c-code" className="input font-mono tracking-widest" required autoFocus autoComplete="one-time-code" inputMode={secours ? "text" : "numeric"} maxLength={secours ? 12 : 7}
+              value={code} onChange={(e) => setCode(secours ? e.target.value.toUpperCase() : e.target.value.replace(/[^\d ]/g, ""))} />
+            <button type="button" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary underline" onClick={() => { setSecours((x) => !x); setCode(""); }}>
+              <KeyRound className="h-4 w-4" aria-hidden="true" />{secours ? "Utiliser le code de l'application" : "Téléphone indisponible ? Utiliser un code de secours"}</button>
+          </div>
+        )}
         <button type="submit" className="btn-primary w-full" disabled={occupe}>
           {occupe ? <span className="jauge jauge-petite border-white/40 border-t-white" aria-hidden="true" /> : creation ? <UserPlus className="h-4 w-4" aria-hidden="true" /> : <LogIn className="h-4 w-4" aria-hidden="true" />}
           {occupe ? "Patientez…" : creation ? "Créer mon compte" : "Se connecter"}</button>
-        <button type="button" className="btn-outline w-full" onClick={() => setCreation((c) => !c)}>
+        <button type="button" className="btn-outline w-full" onClick={() => { setCreation((c) => !c); setEtape2(false); setCode(""); }}>
           {creation ? <LogIn className="h-4 w-4" aria-hidden="true" /> : <UserPlus className="h-4 w-4" aria-hidden="true" />}{creation ? "J'ai déjà un compte" : "Créer un compte"}</button>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600"><EtatServeur /><span>{libelleVersion()}</span></div>
       </form>

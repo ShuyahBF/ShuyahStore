@@ -45,7 +45,7 @@ export default function Layout() {
           </nav>
           <div className="ml-auto flex items-center gap-2 text-sm">
             {user ? (<>
-              <span className="hidden items-center gap-1.5 text-white/90 sm:inline-flex"><UserRound className="h-4 w-4" aria-hidden="true" />{user.nom}</span>
+              <NavLink to="/compte" className={({ isActive }) => `inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-semibold ${isActive ? "bg-white text-nuit" : "text-white/90 hover:bg-white/10"}`} title={user.nom}><UserRound className="h-4 w-4" aria-hidden="true" />{titreMenu("mon compte")}</NavLink>
               <button type="button" onClick={quitter} className="inline-flex items-center gap-1.5 rounded-lg border border-white/30 px-3 py-2 font-semibold hover:bg-white/10"><LogOut className="h-4 w-4" aria-hidden="true" />{titreMenu("déconnexion")}</button>
             </>) : user === null && (
               <Link to="/connexion" className="inline-flex items-center gap-1.5 rounded-lg bg-ocre px-3 py-2 font-semibold hover:bg-orange-800"><LogIn className="h-4 w-4" aria-hidden="true" />{titreMenu("connexion")}</Link>
