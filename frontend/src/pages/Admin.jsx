@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, BadgeCheck, Ban, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Search, X, XCircle } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Ban, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Search, Trash2, X, XCircle } from "lucide-react";
 import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import { IconeApp, Patientez, Recommandee, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -26,6 +26,9 @@ export default function Admin() {
   const [examen, setExamen] = useState(null);                    // version examinée (fenêtre)
   const [motif, setMotif] = useState("");
   const [reglage, setReglage] = useState(null);                  // application réglée (fenêtre)
+  const [versionsApp, setVersionsApp] = useState(null);          // versions de l'application réglée (null = chargement)
+  const [aRetirer, setARetirer] = useState(null);                // version publiée dont on prépare le retrait (fenêtre dans la fenêtre)
+  const [motifRetrait, setMotifRetrait] = useState("");
   const [occupe, setOccupe] = useState(false);
   const triAttente = useTri(t?.en_attente, COL_ATTENTE);
   const triSignalements = useTri(t?.signalements, COL_SIGNALEMENTS);
@@ -59,6 +62,21 @@ export default function Admin() {
     setOccupe(true); toast.info("Enregistrement en cours…");
     try { await apiClient.post(`/admin/apps/${reglage.id}/reglages`, corps); toast.succes(message); setReglage(null); setMotif(""); await charger(); }
     catch (err) { toast.erreur(messageErreur(err, "Réglage non enregistré")); } finally { setOccupe(false); }
+  };
+  // Ouvre la fenêtre de réglage d'une application et lit toutes ses versions
+  const ouvrirReglage = async (a) => {
+    setReglage(a); setMotif(""); setVersionsApp(null); setARetirer(null); setMotifRetrait("");
+    try { const r = await apiClient.get(`/admin/apps/${a.id}/versions`); setVersionsApp(r.data.versions); }
+    catch (err) { setVersionsApp([]); toast.erreur(messageErreur(err, "Versions illisibles")); }
+  };
+  // Retire UNE version publiée (motif obligatoire) sans toucher aux autres versions ni suspendre l'application
+  const retirerVersion = async () => {
+    if (motifRetrait.trim().length < 5) { toast.erreur("Indiquez le motif du retrait"); return; }
+    setOccupe(true); toast.info(`Retrait de la version ${aRetirer.version_nom || aRetirer.version_code} en cours…`);
+    try { await apiClient.post(`/admin/versions/${aRetirer.id}/retirer`, { motif: motifRetrait });
+      toast.succes(`Version ${aRetirer.version_nom || aRetirer.version_code} retirée : elle n'est plus téléchargeable`);
+      setARetirer(null); setMotifRetrait(""); await charger(); await ouvrirReglage(reglage); }
+    catch (err) { toast.erreur(messageErreur(err, "Retrait non effectué")); } finally { setOccupe(false); }
   };
   const traiter = async (s) => {
     toast.info("Clôture du signalement en cours…");
@@ -146,7 +164,7 @@ export default function Admin() {
                   <td className="space-x-1"><Statut code={a.statut} />{a.recommandee && <Recommandee />}</td>
                   <td className="text-right tabular-nums text-primary">{nombre(a.telechargements)}</td>
                   <td className="tabular-nums">{dateFr(a.maj_le)}</td>
-                  <td><button type="button" className="btn-bleu btn-sm" onClick={() => { setReglage(a); setMotif(""); }}><BadgeCheck className="h-4 w-4" aria-hidden="true" />Régler</button></td>
+                  <td><button type="button" className="btn-bleu btn-sm" onClick={() => ouvrirReglage(a)}><BadgeCheck className="h-4 w-4" aria-hidden="true" />Régler</button></td>
                 </tr>))}</tbody>
             </table>
           </div>
@@ -213,6 +231,30 @@ export default function Admin() {
               <div><label className="label" htmlFor="rg-motif">Motif de la suspension</label><textarea id="rg-motif" className="input" rows={2} maxLength={500} value={motif} onChange={(e) => setMotif(e.target.value)} /></div>
               <button type="button" className="btn-danger w-full" disabled={occupe || motif.trim().length < 5} onClick={() => regler({ suspendue: true, motif }, "Application suspendue : elle n'est plus visible ni téléchargeable")}><Ban className="h-4 w-4" aria-hidden="true" />Suspendre (retirer du catalogue)</button>
             </>)}
+            {/* Versions de l'application : retirer UNE version publiée (ex. ancienne version signée avec une clé de test) */}
+            <div className="space-y-2 border-t border-gray-200 pt-3">
+              <h3 className="font-bold">Versions</h3>
+              {!versionsApp ? <p className="text-gray-600">Lecture des versions en cours…</p> : versionsApp.map((v) => (
+                <div key={v.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 p-2">
+                  <b className="text-primary">{v.version_nom || v.version_code}</b>
+                  <span className="text-xs text-gray-500">n° {v.version_code} · {taille(v.taille)} · {dateFr(v.cree_le)}</span><Statut code={v.statut} />
+                  {(v.statut === "publiee" || v.statut === "archivee") && (
+                    <button type="button" className="btn-outline btn-sm ml-auto border-red-300 text-red-800" disabled={occupe} title={`Retirer la version ${v.version_nom || v.version_code}`}
+                      aria-label={`Retirer la version ${v.version_nom || v.version_code}`} onClick={() => { setARetirer(v); setMotifRetrait(""); }}>
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />Retirer cette version</button>)}
+                  {v.motif_retrait && <p className="w-full rounded bg-gray-100 p-1.5 text-xs text-gray-800">Motif du retrait : {v.motif_retrait}</p>}
+                </div>))}
+              {aRetirer && (
+                <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 p-3">
+                  <p className="font-semibold text-red-900">Retirer la version {aRetirer.version_nom || aRetirer.version_code} ? Elle ne sera plus téléchargeable et son fichier sera supprimé.</p>
+                  <label className="label" htmlFor="rt-motif">Motif du retrait</label>
+                  <textarea id="rt-motif" className="input" rows={2} maxLength={500} value={motifRetrait} onChange={(e) => setMotifRetrait(e.target.value)} />
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="btn-danger" disabled={occupe || motifRetrait.trim().length < 5} onClick={retirerVersion}><Trash2 className="h-4 w-4" aria-hidden="true" />Confirmer le retrait</button>
+                    <button type="button" className="btn-outline" disabled={occupe} onClick={() => setARetirer(null)}><X className="h-4 w-4" aria-hidden="true" />Annuler</button>
+                  </div>
+                </div>)}
+            </div>
             <button type="button" className="btn-outline" disabled={occupe} onClick={() => setReglage(null)}><X className="h-4 w-4" aria-hidden="true" />Fermer</button>
           </div>
         )}

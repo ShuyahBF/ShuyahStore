@@ -88,6 +88,48 @@ async def publier_version(v: dict, a: dict) -> None:
         await db.versions.update_one({"id": ancienne["id"]}, {"$set": {"statut": "archivee"}, "$unset": {"fichier_id": ""}})
 
 
+@router.get("/apps/{app_id}/versions")
+async def versions_de_l_application(app_id: str):
+    """Toutes les versions d'une application (publiées, archivées, en attente, refusées, retirées), de la plus récente à la plus ancienne."""
+    if not await db.applications.find_one({"id": app_id}, SANS_ID):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Application introuvable")
+    versions = await db.versions.find({"app_id": app_id}, SANS_ID).sort("version_code", -1).to_list(200)
+    return {"versions": [version_ecran(v) for v in versions]}
+
+
+class Retrait(BaseModel):
+    motif: str = Field("", max_length=500)
+
+
+@router.post("/versions/{version_id}/retirer")
+async def retirer_version_publiee(version_id: str, data: Retrait):
+    """Retirer UNE version déjà publiée (ex. ancienne version signée avec une clé de test) sans suspendre toute l'application.
+    La version passe à l'état « retirée » : elle disparaît du catalogue et son fichier est supprimé (la fiche de la version et son motif restent).
+    Si c'était la version courante, la plus récente des versions publiées restantes prend sa place. La dernière version publiée ne se retire pas
+    (il faudrait alors suspendre l'application). Un motif est exigé, comme pour un refus ou une suspension."""
+    v = await db.versions.find_one({"id": version_id}, SANS_ID)
+    a = await db.applications.find_one({"id": v["app_id"]}, SANS_ID) if v else None
+    if not v or not a:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Version introuvable")
+    if v["statut"] not in ("publiee", "archivee"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Seule une version publiée ou archivée peut être retirée")
+    if len(data.motif.strip()) < 5:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Indiquez le motif du retrait")
+    restantes = await db.versions.find({"app_id": a["id"], "statut": "publiee", "id": {"$ne": version_id}}, SANS_ID).sort("version_code", -1).to_list(1)
+    if v["statut"] == "publiee" and not restantes:
+        raise HTTPException(status.HTTP_409_CONFLICT, "C'est la seule version publiée : suspendez plutôt l'application")
+    moment = iso()
+    await stockage.supprimer(v.get("fichier_id"))
+    await db.versions.update_one({"id": version_id}, {"$set": {"statut": "retiree", "motif_retrait": texte(data.motif, 500), "traite_le": moment},
+                                                       "$unset": {"fichier_id": ""}})
+    # Version courante retirée : la plus récente version publiée restante devient la courante
+    if (a.get("version_courante") or {}).get("id") == version_id and restantes:
+        n = restantes[0]
+        courante = {k: n.get(k) for k in ("id", "version_code", "version_nom", "taille", "sha256", "sdk_min")}
+        await db.applications.update_one({"id": a["id"]}, {"$set": {"version_courante": courante, "maj_le": moment}})
+    return {"ok": True, "statut": "retiree"}
+
+
 class Reglages(BaseModel):
     recommandee: bool | None = None
     suspendue: bool | None = None
