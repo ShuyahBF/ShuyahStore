@@ -283,3 +283,26 @@ def test_administrateur_retire_une_version_publiee(client, compte, admin):
     assert client.post(f"/api/admin/versions/{v1['id']}/retirer", headers=admin, json={"motif": "encore une fois"}).status_code == 409
     # un développeur ne peut pas utiliser cette route
     assert client.post(f"/api/admin/versions/{v2['id']}/retirer", headers=h, json={"motif": "essai de retrait"}).status_code in (401, 403)
+
+
+def test_nombre_de_versions_conservees_reglable(client, compte, admin):
+    """Par défaut 3 fichiers gardés ; l'administrateur change le réglage, appliqué tout de suite et aux prochaines publications."""
+    _, h, app, v1, _ = application_publiee(client, compte, admin, code=1)
+    for code in (2, 3, 4):
+        publier(client, admin, deposer(client, h, fabriquer(paquet=app["paquet"], code=code)).json()["version"]["id"])
+    etats = lambda: {x["version_code"]: x["statut"] for x in client.get(f"/api/admin/apps/{app['id']}/versions", headers=admin).json()["versions"]}
+    assert client.get("/api/admin/parametres", headers=admin).json()["versions_conservees"] == 3
+    assert etats() == {1: "archivee", 2: "publiee", 3: "publiee", 4: "publiee"}              # défaut : 3 gardées
+    # valeurs hors bornes refusées ; réservé à l'administrateur
+    assert client.put("/api/admin/parametres", headers=admin, json={"versions_conservees": 0}).status_code == 422
+    assert client.put("/api/admin/parametres", headers=admin, json={"versions_conservees": 21}).status_code == 422
+    assert client.put("/api/admin/parametres", headers=h, json={"versions_conservees": 2}).status_code in (401, 403)
+    # on baisse à 2 : appliqué immédiatement
+    r = client.put("/api/admin/parametres", headers=admin, json={"versions_conservees": 2})
+    assert r.status_code == 200 and r.json()["archivees"] >= 1                 # global : peut inclure des applications d autres tests
+    assert etats() == {1: "archivee", 2: "archivee", 3: "publiee", 4: "publiee"}
+    # la prochaine publication respecte le nouveau réglage
+    publier(client, admin, deposer(client, h, fabriquer(paquet=app["paquet"], code=5)).json()["version"]["id"])
+    assert etats() == {1: "archivee", 2: "archivee", 3: "archivee", 4: "publiee", 5: "publiee"}
+    # remise du réglage par défaut : la base des tests est partagée entre les tests
+    assert client.put("/api/admin/parametres", headers=admin, json={"versions_conservees": 3}).status_code == 200

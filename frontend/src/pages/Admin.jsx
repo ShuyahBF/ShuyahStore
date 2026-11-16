@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, BadgeCheck, Ban, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Search, Trash2, X, XCircle } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Ban, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Save, Search, Trash2, X, XCircle } from "lucide-react";
 import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import { IconeApp, Patientez, Recommandee, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -29,6 +29,8 @@ export default function Admin() {
   const [versionsApp, setVersionsApp] = useState(null);          // versions de l'application réglée (null = chargement)
   const [aRetirer, setARetirer] = useState(null);                // version publiée dont on prépare le retrait (fenêtre dans la fenêtre)
   const [motifRetrait, setMotifRetrait] = useState("");
+  const [params, setParams] = useState(null);                  // réglages de la plateforme (lus sur le serveur)
+  const [nbVersions, setNbVersions] = useState("");              // saisie : versions d'APK conservées par application
   const [occupe, setOccupe] = useState(false);
   const triAttente = useTri(t?.en_attente, COL_ATTENTE);
   const triSignalements = useTri(t?.signalements, COL_SIGNALEMENTS);
@@ -39,8 +41,8 @@ export default function Admin() {
     if (annonce) toast.info("Actualisation de l'administration en cours…");
     try {
       // Les trois lectures partent EN MÊME TEMPS ; une section lente ne bloque pas les autres
-      const [tableau, liste, lents] = await Promise.all([apiClient.get("/admin/tableau"), apiClient.get("/admin/apps"), apiClient.get("/admin/appels-lents")]);
-      setT(tableau.data); setApps(liste.data.apps); setRoutes(lents.data.routes);
+      const [tableau, liste, lents, reglages] = await Promise.all([apiClient.get("/admin/tableau"), apiClient.get("/admin/apps"), apiClient.get("/admin/appels-lents"), apiClient.get("/admin/parametres")]);
+      setT(tableau.data); setApps(liste.data.apps); setRoutes(lents.data.routes); setParams(reglages.data); setNbVersions(String(reglages.data.versions_conservees));
       if (annonce) toast.succes(`Relu : ${tableau.data.en_attente.length} version(s) à valider, ${tableau.data.signalements.length} signalement(s), ${liste.data.apps.length} application(s)`);
     } catch (err) { toast.erreur(messageErreur(err, "Administration indisponible")); }
   }, [toast]);
@@ -78,6 +80,14 @@ export default function Admin() {
       setARetirer(null); setMotifRetrait(""); await charger(); await ouvrirReglage(reglage); }
     catch (err) { toast.erreur(messageErreur(err, "Retrait non effectué")); } finally { setOccupe(false); }
   };
+  // Enregistre le nombre de versions d'APK conservées : appliqué tout de suite (les plus anciennes sont archivées, leur fichier supprimé)
+  const enregistrerParametres = async () => {
+    setOccupe(true); toast.info("Enregistrement du réglage en cours…");
+    try { const r = await apiClient.put("/admin/parametres", { versions_conservees: Number(nbVersions) });
+      toast.succes(`Réglage enregistré : ${r.data.versions_conservees} version(s) conservée(s) par application` + (r.data.archivees ? `, ${r.data.archivees} ancienne(s) version(s) archivée(s)` : ""));
+      await charger(); }
+    catch (err) { toast.erreur(messageErreur(err, "Réglage non enregistré")); } finally { setOccupe(false); }
+  };
   const traiter = async (s) => {
     toast.info("Clôture du signalement en cours…");
     try { await apiClient.post(`/admin/signalements/${s.id}/traiter`, { note: "" }); toast.succes("Signalement classé"); await charger(); }
@@ -98,6 +108,18 @@ export default function Admin() {
           <div key={libelle} className="card"><p className="text-xs font-semibold uppercase tracking-wider text-gray-600">{libelle}</p><p className={`mt-1 font-display text-3xl font-bold tabular-nums ${couleur}`}>{nombre(valeur)}</p></div>))}
       </div>
       <p className="card flex flex-wrap items-center gap-2 text-sm"><Gauge className="h-4 w-4 text-purple-700" aria-hidden="true" />Espace occupé par les fichiers dans la base : <b className="tabular-nums text-purple-700">{taille(c.stockage_octets)}</b> ({nombre(c.fichiers)} fichier{c.fichiers > 1 ? "s" : ""}). Les 3 dernières versions publiées de chaque application sont conservées ; les plus anciennes sont archivées.</p>
+
+      {/* Réglage : nombre de versions d'APK conservées par application (au-delà, la plus ancienne est archivée et son fichier supprimé) */}
+      {params && (() => { const modifie = Number(nbVersions) !== params.versions_conservees; const valide = Number.isInteger(Number(nbVersions)) && Number(nbVersions) >= params.minimum && Number(nbVersions) <= params.maximum;
+        return (
+          <section className="card flex flex-wrap items-end gap-3 text-sm">
+            <div>
+              <label className="label" htmlFor="nb-versions">Versions d'APK conservées par application</label>
+              <input id="nb-versions" type="number" className="input w-28" min={params.minimum} max={params.maximum} value={nbVersions} onChange={(e) => setNbVersions(e.target.value)} />
+            </div>
+            <button type="button" className="btn-bleu" disabled={occupe || !modifie || !valide} onClick={enregistrerParametres}><Save className="h-4 w-4" aria-hidden="true" />Enregistrer</button>
+            <p className="text-xs text-gray-600">{modifie ? <b className="text-amber-800">Modifié, non enregistré. </b> : null}Entre {params.minimum} et {params.maximum} (par défaut {params.defaut}). Au-delà, la version publiée la plus ancienne est archivée : sa fiche reste, son fichier est supprimé pour libérer la base. S'applique tout de suite.</p>
+          </section>); })()}
 
       {/* Versions à valider : placées EN HAUT (ce qui demande une action) */}
       <section className="space-y-2">
