@@ -215,6 +215,20 @@ def libelle_semaine(jour: Optional[date] = None) -> str:
     return f"Semaine du {debut.strftime('%d/%m/%Y')} au {fin.strftime('%d/%m/%Y')}"
 
 
+async def simuler_rapport(a: dict, destinataire: str) -> dict:
+    """SIMULATION (administration) : compose le rapport hebdomadaire d'UNE application, le marque « simulation » et l'envoie au seul administrateur
+    qui le demande (jamais au développeur). Rend { envoye, sujet, html } : l'aperçu reste affichable même si la messagerie n'est pas configurée."""
+    serie = await serie_quotidienne(a["id"])
+    site = (get_settings().public_site_url or "").rstrip("/")
+    texte, corps = rapport_html(a.get("nom_developpeur", ""), [(await analyser_app(a, serie), serie)], libelle_semaine(), site)
+    bandeau = ('<div style="background:#fff4d6;border:1px solid #e0b64a;color:#6b4a00;padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:13px">'
+               '<b>SIMULATION</b> : ce rapport est envoyé à l\'administrateur seulement ; le développeur ne l\'a pas reçu.</div>')
+    corps = corps.replace('<h2', bandeau + '<h2', 1)
+    sujet = f"[Simulation] ShuyahStore : statistiques de {a['nom']}"
+    envoye = await email_envoi.envoyer(destinataire, sujet, "SIMULATION\n\n" + texte, corps) if destinataire else False
+    return {"envoye": envoye, "sujet": sujet, "html": corps}
+
+
 async def envoyer_rapport(dev: dict) -> bool:
     """Compose et envoie le rapport à un développeur ; vrai si le serveur de messagerie l'a accepté."""
     bilans = await bilans_du_developpeur(dev["id"])
