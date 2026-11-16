@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from pydantic import BaseModel, Field
 
 import apk
+import regles_qualite
 import referentiel
 import stockage
 from config import get_settings
@@ -60,8 +61,6 @@ async def deposer(fichier: UploadFile = File(...), nom: str = Form(""), resume: 
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     if analyse.taille > s.apk_taille_max_mo * 1024 * 1024:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, f"Fichier trop gros : {s.apk_taille_max_mo} Mo au plus")
-    if analyse.debogable:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Cet APK est une version de DÉVELOPPEMENT (débogable) : déposez la version de publication (release).")
     if analyse.version_code <= 0:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Numéro de version (versionCode) absent de l'APK.")
     certificats = [c.__dict__ for c in analyse.certificats]
@@ -81,6 +80,17 @@ async def deposer(fichier: UploadFile = File(...), nom: str = Form(""), resume: 
     else:
         if len(nom.strip()) < 2:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Nouvelle application : indiquez son nom.")
+    # 3 bis. règles de qualité et de sécurité (lot 5) : les BLOQUANTES refusent le dépôt, les ALERTES sont gardées sur la version
+    description_pour_regles = f"{a.get('resume', '')} {a.get('description', '')}" if a else f"{resume} {description}"
+    precedentes = None
+    if a:
+        avant = await db.versions.find_one({"app_id": a["id"], "statut": {"$in": ["publiee", "archivee", "en_attente"]}}, SANS_ID, sort=[("version_code", -1)])
+        precedentes = (avant or {}).get("autorisations") if avant else None
+    constats = regles_qualite.evaluer(analyse.autorisations, analyse.sdk_cible, analyse.debogable, description_pour_regles, precedentes,
+                                      certificat_debug([c.__dict__ for c in analyse.certificats]))
+    refus = regles_qualite.bloquants(constats)
+    if refus:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, " ".join(c["message"] for c in refus))
     if await db.versions.find_one({"sha256": analyse.sha256, "statut": {"$ne": "refusee"}}, {"_id": 1}):
         raise HTTPException(status.HTTP_409_CONFLICT, "Ce fichier exact a déjà été déposé.")
 
@@ -105,7 +115,7 @@ async def deposer(fichier: UploadFile = File(...), nom: str = Form(""), resume: 
         v = {"id": str(uuid.uuid4()), "app_id": a["id"], "version_code": analyse.version_code, "version_nom": analyse.version_nom,
              "taille": analyse.taille, "sha256": analyse.sha256, "schemas": analyse.schemas, "certificats": certificats,
              "sdk_min": analyse.sdk_min, "sdk_cible": analyse.sdk_cible, "autorisations": analyse.autorisations,
-             "nouveautes": texte(nouveautes, 2000), "statut": "en_attente", "fichier_id": fichier_id, "telechargements": 0,
+             "nouveautes": texte(nouveautes, 2000), "alertes": constats, "statut": "en_attente", "fichier_id": fichier_id, "telechargements": 0,
              "depose_par": user["id"], "jour": date.today().isoformat(), "cree_le": moment}
         await db.versions.insert_one(v.copy())
     except Exception:

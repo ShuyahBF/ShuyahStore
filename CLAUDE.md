@@ -34,6 +34,10 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
   - Règle « APK livré à chaque livraison » : toute livraison qui touche `android/` ou le pont envoie l'APK release (`shuyahstore-X.Y.apk`, version + 1).
 
 ## Règles propres à ShuyahStore (sécurité, règle 21)
+- Règles de qualité des APK (lot 5) : `backend/regles_qualite.py`, fonction pure testée. BLOQUANT (dépôt refusé avec explication) : version débogable, niveau cible
+  Android < 23 (refusée par Android 14+), combinaison SMS + accessibilité + superposition d'écran. ALERTE (dépôt accepté, montrée au développeur ET à l'administrateur) :
+  autorisation sensible non annoncée dans la description, nouvelles autorisations sensibles par rapport à la version précédente, niveau cible ancien, clé de test.
+  Une alerte aide la décision de l'administrateur, elle ne décide pas seule.
 - Rien de ce que déclare un développeur n'est cru sur parole : paquet, version, autorisations et certificat sont LUS dans l'APK par `backend/apk.py`,
   qui VÉRIFIE la signature v2 / v3 et l'intégrité du fichier. Toute évolution de ce module garde ses tests (`tests/test_apk.py`) et reste
   conforme à l'outil officiel `apksigner`.

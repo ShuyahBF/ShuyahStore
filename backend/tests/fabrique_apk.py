@@ -34,7 +34,7 @@ def cle(nom: str = "dev"):
 
 
 # ---------------------------------------------------------------- manifeste binaire (AXML)
-def _manifeste(paquet: str, code: int, nom_version: str, sdk_min: int, autorisations: list[str], debogable: bool) -> bytes:
+def _manifeste(paquet: str, code: int, nom_version: str, sdk_min: int, autorisations: list[str], debogable: bool, sdk_cible: int | None = None) -> bytes:
     chaines: list[str] = []
 
     def s(texte: str) -> int:
@@ -43,7 +43,7 @@ def _manifeste(paquet: str, code: int, nom_version: str, sdk_min: int, autorisat
         return chaines.index(texte)
 
     # Les attributs « android: » d'abord (leur rang = rang dans la table des identifiants de ressource)
-    ids = [("versionCode", 0x0101021B), ("versionName", 0x0101021C), ("minSdkVersion", 0x0101020C), ("name", 0x01010003), ("debuggable", 0x0101000F)]
+    ids = [("versionCode", 0x0101021B), ("versionName", 0x0101021C), ("minSdkVersion", 0x0101020C), ("name", 0x01010003), ("debuggable", 0x0101000F), ("targetSdkVersion", 0x01010270)]
     for n, _ in ids:
         s(n)
     ns = s("http://schemas.android.com/apk/res/android")
@@ -60,7 +60,7 @@ def _manifeste(paquet: str, code: int, nom_version: str, sdk_min: int, autorisat
 
     v = s(nom_version)
     elements = [balise("manifest", [attribut("versionCode", 0x10, code), attribut("versionName", 0x03, v, v), attribut("package", 0x03, s(paquet), s(paquet), -1)]),
-                balise("uses-sdk", [attribut("minSdkVersion", 0x10, sdk_min)]), fin("uses-sdk")]
+                balise("uses-sdk", [attribut("minSdkVersion", 0x10, sdk_min), attribut("targetSdkVersion", 0x10, sdk_cible if sdk_cible is not None else 34)]), fin("uses-sdk")]
     for a in autorisations:
         elements += [balise("uses-permission", [attribut("name", 0x03, s(a), s(a))]), fin("uses-permission")]
     elements += [balise("application", [attribut("debuggable", 0x12, 0xFFFFFFFF if debogable else 0)]), fin("application"), fin("manifest")]
@@ -93,12 +93,12 @@ def _empreinte(avant: bytes, repertoire: bytes, fin_zip: bytes) -> bytes:
 
 
 def fabriquer(paquet: str = "bf.test.appli", code: int = 1, nom_version: str = "1.0", signataire: str = "dev", sdk_min: int = 24,
-              autorisations: tuple = ("android.permission.INTERNET", "android.permission.READ_SMS"), debogable: bool = False,
+              autorisations: tuple = ("android.permission.INTERNET", "android.permission.READ_SMS"), debogable: bool = False, sdk_cible: int | None = None,
               contenu: bytes = b"classes", signer: bool = True) -> bytes:
     """Rend les octets d'un APK. `signer=False` : APK sans bloc de signature v2 (doit être refusé)."""
     tampon = io.BytesIO()
     with zipfile.ZipFile(tampon, "w", zipfile.ZIP_STORED) as z:
-        z.writestr("AndroidManifest.xml", _manifeste(paquet, code, nom_version, sdk_min, list(autorisations), debogable))
+        z.writestr("AndroidManifest.xml", _manifeste(paquet, code, nom_version, sdk_min, list(autorisations), debogable, sdk_cible))
         z.writestr("classes.dex", contenu)
     brut = tampon.getvalue()
     if not signer:
