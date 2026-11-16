@@ -37,6 +37,11 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
   Valable 15 min, 5 essais, 1 envoi / minute et 5 / jour ; seule l'empreinte du code est gardée. Réglage `EMAIL_VERIFIE_POUR_DEPOSER` (auto = exigée seulement si SMTP est configuré :
   un service d'e-mail absent ne bloque jamais l'utilisateur honnête). La fiche d'une application montre « e-mail vérifié » du développeur.
 
+- Clés d'accès (lot 7) : connexion au SITE par empreinte, visage ou code du téléphone (WebAuthn, `backend/routes/passkeys.py`, `frontend/src/lib/passkeys.js`). Se règle dans « Mon Compte »
+  (ajout et suppression avec le mot de passe). Vérification de l'utilisateur EXIGÉE, défi à usage unique de 5 min, compteur de signatures contre les clés clonées ; une connexion par clé
+  d'accès vaut authentification forte (pas de second code). Liée au nom de domaine du site (`WEBAUTHN_RP_ID`, par défaut le domaine de `FRONTEND_ORIGIN`) : changer de domaine oblige à recréer les clés.
+  Dans l'application Android (fenêtre intégrée), les clés d'accès ne sont pas proposées : on y utilise le verrou par empreinte. `cryptography` est épinglée à la version exigée par `webauthn`.
+
 ## Règles propres à ShuyahStore (sécurité, règle 21)
 - Règles de qualité des APK (lot 5) : `backend/regles_qualite.py`, fonction pure testée. BLOQUANT (dépôt refusé avec explication) : version débogable, niveau cible
   Android < 23 (refusée par Android 14+), combinaison SMS + accessibilité + superposition d'écran. ALERTE (dépôt accepté, montrée au développeur ET à l'administrateur) :

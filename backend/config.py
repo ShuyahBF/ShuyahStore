@@ -48,11 +48,22 @@ class Settings(BaseSettings):
     # Dépôt d'applications : « auto » = adresse vérifiée exigée SI l'envoi d'e-mails est configuré ; « oui » / « non » pour forcer
     email_verifie_pour_deposer: str = "auto"
 
+    # --- Clés d'accès (WebAuthn : empreinte, visage ou code du téléphone sur le SITE) ---
+    # Identifiant du site pour les clés d'accès : par défaut le nom de domaine de la première adresse du site (ex. shuyahstore-site.onrender.com).
+    # ATTENTION : une clé d'accès est liée à ce nom de domaine ; changer de domaine oblige à en recréer une.
+    webauthn_rp_id: str = ""
+    webauthn_rp_nom: str = "ShuyahStore"
+
     # --- Limites ---
     limite_publique_par_minute: int = 60         # appels publics par minute et par adresse IP
     apk_taille_max_mo: int = 150                 # taille maximale d'un APK déposé
     icone_taille_max_ko: int = 512               # taille maximale d'une icône
     depots_par_jour: int = 20                    # dépôts d'APK par développeur et par jour (anti-abus)
+
+    @property
+    def rp_id(self) -> str:
+        from urllib.parse import urlparse
+        return self.webauthn_rp_id.strip() or (urlparse(self.frontend_origins[0]).hostname or "localhost")
 
     @property
     def frontend_origins(self) -> list[str]:

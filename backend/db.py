@@ -63,6 +63,11 @@ async def ensure_indexes() -> None:
     # Installations signalées par l'application Android : un appareil compte une seule fois par application
     await db.installations.create_index([("appareil_id", 1), ("app_id", 1)], unique=True)
     await db.telechargements.create_index([("version_id", 1), ("appareil_id", 1)])
+    # Clés d'accès (WebAuthn) : une clé = un identifiant unique ; défis à usage unique, effacés après 10 minutes
+    await db.passkeys.create_index("credential_id", unique=True)
+    await db.passkeys.create_index("user_id")
+    await db.defis.create_index("id", unique=True)
+    await db.defis.create_index("cree_le", expireAfterSeconds=600)
     # Signalements et échecs de connexion
     await db.signalements.create_index([("statut", 1), ("cree_le", -1)])
     await db.echecs_connexion.create_index([("cle", 1), ("date", 1)])
