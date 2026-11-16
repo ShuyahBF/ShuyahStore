@@ -15,6 +15,10 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
 
 ## Décisions du propriétaire
 - Les APK sont stockés **dans la base MongoDB**, en binaire, découpés en morceaux (`backend/stockage.py`) — pas de stockage externe (16/11/2026).
+- L'interdiction des captures d'écran n'est PAS appliquée sur ShuyahStore (catalogue public ; décision du 16/11/2026).
+- Clé de signature permanente (16/11/2026) : l'espace développeur permet de CRÉER sa clé (`frontend/src/lib/cleSignature.js`, `components/CleSignature.jsx`),
+  de la télécharger en JSON (et en magasin .p12) et avertit de bien la conserver. La clé est fabriquée dans le navigateur : le serveur ne la reçoit
+  JAMAIS et n'en garde aucune copie ; le mot de passe n'est pas écrit dans le fichier. Test : `cd frontend && node tests/cleSignature.test.mjs`.
 - Première version = site web ; l'application Android ShuyahStore (installation, mises à jour, installations et désinstallations réelles) est la deuxième étape.
 
 ## Règles propres à ShuyahStore (sécurité, règle 21)

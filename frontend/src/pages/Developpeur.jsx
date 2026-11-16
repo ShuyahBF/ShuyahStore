@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, ExternalLink, ImageUp, KeyRound, LogIn, Pencil, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
 import BlocSignature, { Autorisations } from "@/components/BlocSignature";
+import CleSignature from "@/components/CleSignature";
 import { IconeApp, Patientez, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
@@ -87,6 +88,7 @@ export default function Developpeur() {
         <div><h1 className="text-2xl font-bold">Espace développeur</h1><p className="text-sm text-gray-600">Vos applications, leurs versions et l'état de leur validation.</p></div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn-outline" onClick={() => charger(true)}><RefreshCw className="h-4 w-4 text-primary" aria-hidden="true" />Actualiser</button>
+          <CleSignature nomParDefaut={user.nom} />
           <button type="button" className="btn-primary" onClick={() => setDepot({ app: null, categorie: "autre" })} data-testid="deposer"><Upload className="h-4 w-4" aria-hidden="true" />Déposer une application</button>
         </div>
       </div>
@@ -136,6 +138,7 @@ export default function Developpeur() {
             <div><label className="label" htmlFor="dp-fichier">Fichier APK signé (version de publication)</label>
               <input id="dp-fichier" className="input" type="file" required accept=".apk,application/vnd.android.package-archive" onChange={(e) => setDepot({ ...depot, fichier: e.target.files?.[0] })} data-testid="fichier-apk" />
               {depot.fichier && <p className="mt-1 text-xs text-gray-600">{depot.fichier.name} · {taille(depot.fichier.size)}</p>}</div>
+            <p className="text-xs text-gray-600">Signez votre APK avec votre <b>clé de signature permanente</b> (bouton « Créer ma clé de signature » de l'espace développeur) et gardez-la précieusement : la même clé servira à toutes vos mises à jour.</p>
             {nouvelleApp ? (<>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div><label className="label" htmlFor="dp-nom">Nom de l'application</label><input id="dp-nom" className="input" required minLength={2} maxLength={60} value={depot.nom || ""} onChange={(e) => setDepot({ ...depot, nom: e.target.value })} /></div>
