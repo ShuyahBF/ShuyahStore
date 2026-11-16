@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, Copy, Download, Fingerprint, LogIn, ShieldCheck, ShieldOff, ShieldPlus, X } from "lucide-react";
 import ChampMotDePasse from "@/components/ChampMotDePasse";
 import ClesAcces from "@/components/ClesAcces";
+import JetonsDepot from "@/components/JetonsDepot";
 import VerificationEmail from "@/components/VerificationEmail";
 import { Patientez } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -112,6 +113,8 @@ export default function Compte() {
           <button type="button" className="btn-vert" onClick={() => ouvrir("activer")} data-testid="activer-a2f"><ShieldPlus className="h-4 w-4" aria-hidden="true" />Activer la double authentification</button>
         </>)}
       </section>
+
+      <JetonsDepot />
 
       {blocVerrou}
 

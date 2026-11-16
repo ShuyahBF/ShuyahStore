@@ -26,7 +26,7 @@ from db import SANS_ID, db
 from outils import iso, sans_accents
 from routes.commun import app_ecran, certificat_debug, texte, version_ecran
 from routes.auth import verification_obligatoire_pour_deposer
-from securite import get_current_user, utilisateur_public
+from securite import get_current_user, utilisateur_ou_jeton_depot, utilisateur_public
 
 router = APIRouter(prefix="/dev", tags=["Développeur"])
 
@@ -37,7 +37,7 @@ def champ_recherche(a: dict) -> str:
 
 
 @router.get("/apps")
-async def mes_applications(user: dict = Depends(get_current_user)):
+async def mes_applications(user: dict = Depends(utilisateur_ou_jeton_depot)):
     """Mes applications et toutes leurs versions (publiées, en attente, refusées). Lecture EN BLOC : une requête par collection (règle 7)."""
     apps = await db.applications.find({"developpeur_id": user["id"]}, SANS_ID).sort("maj_le", -1).to_list(200)
     versions = await db.versions.find({"app_id": {"$in": [a["id"] for a in apps]}}, SANS_ID).sort("version_code", -1).to_list(2000) if apps else []
@@ -49,7 +49,7 @@ async def mes_applications(user: dict = Depends(get_current_user)):
 
 @router.post("/depot", status_code=status.HTTP_201_CREATED)
 async def deposer(fichier: UploadFile = File(...), nom: str = Form(""), resume: str = Form(""), description: str = Form(""),
-                  categorie: str = Form("autre"), nouveautes: str = Form(""), user: dict = Depends(get_current_user)):
+                  categorie: str = Form("autre"), nouveautes: str = Form(""), user: dict = Depends(utilisateur_ou_jeton_depot)):
     """Dépose un APK : nouvelle application (le nom est alors obligatoire) ou nouvelle version d'une application existante."""
     s = get_settings()
     # 0. adresse e-mail vérifiée (lot 6) : exigée si l'envoi d'e-mails est configuré (réglage EMAIL_VERIFIE_POUR_DEPOSER)
@@ -125,7 +125,13 @@ async def deposer(fichier: UploadFile = File(...), nom: str = Form(""), resume: 
     except Exception:
         await stockage.supprimer(fichier_id)
         raise
-    return {"app": app_ecran(a, detail=True), "version": version_ecran(v), "certificat_debug": certificat_debug(certificats)}
+    # Publication directe : seulement pour l'administrateur, avec un jeton qui l'autorise, et SANS alerte (hors clé de test) — sinon la version attend l'examen comme les autres
+    publiee = False
+    if user.get("role") == "admin" and (user.get("jeton_depot") or {}).get("publier_directement") and not [c for c in constats if c["code"] != "certificat_test"]:
+        from routes.admin import publier_version
+        await publier_version(v, a)
+        v, a, publiee = {**v, "statut": "publiee"}, {**a, "statut": "publiee" if a["statut"] != "suspendue" else "suspendue"}, True
+    return {"app": app_ecran(a, detail=True), "version": version_ecran(v), "certificat_debug": certificat_debug(certificats), "publiee_directement": publiee}
 
 
 class Fiche(BaseModel):

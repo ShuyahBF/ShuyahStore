@@ -68,6 +68,9 @@ async def ensure_indexes() -> None:
     await db.passkeys.create_index("user_id")
     await db.defis.create_index("id", unique=True)
     await db.defis.create_index("cree_le", expireAfterSeconds=600)
+    # Jetons de dépôt (publication automatique) : l'empreinte du jeton est unique ; liste par utilisateur
+    await db.jetons_depot.create_index("empreinte", unique=True)
+    await db.jetons_depot.create_index("user_id")
     # Signalements et échecs de connexion
     await db.signalements.create_index([("statut", 1), ("cree_le", -1)])
     await db.echecs_connexion.create_index([("cle", 1), ("date", 1)])

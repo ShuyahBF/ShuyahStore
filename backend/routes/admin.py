@@ -69,8 +69,15 @@ async def decider(version_id: str, data: Decision):
         if a["statut"] == "en_attente" and not await db.versions.count_documents({"app_id": a["id"], "statut": {"$in": ["publiee", "en_attente"]}}):
             await db.applications.update_one({"id": a["id"]}, {"$set": {"statut": "refusee"}})
         return {"ok": True, "statut": "refusee"}
-    # Publication : la version devient la version courante de l'application
-    await db.versions.update_one({"id": version_id}, {"$set": {"statut": "publiee", "publie_le": moment, "traite_le": moment}})
+    await publier_version(v, a)
+    return {"ok": True, "statut": "publiee"}
+
+
+async def publier_version(v: dict, a: dict) -> None:
+    """Publie une version : elle devient la version courante de l'application ; les fichiers des plus anciennes versions sont libérés.
+    Partagée par la décision de l'administrateur et par la publication directe d'un dépôt de l'administrateur (jeton de dépôt)."""
+    moment = iso()
+    await db.versions.update_one({"id": v["id"]}, {"$set": {"statut": "publiee", "publie_le": moment, "traite_le": moment}})
     courante = {k: v.get(k) for k in ("id", "version_code", "version_nom", "taille", "sha256", "sdk_min")}
     await db.applications.update_one({"id": a["id"]}, {"$set": {"statut": "publiee" if a["statut"] != "suspendue" else "suspendue",
                                                                "version_courante": courante, "maj_le": moment}})
@@ -79,7 +86,6 @@ async def decider(version_id: str, data: Decision):
     for ancienne in anciennes:
         await stockage.supprimer(ancienne.get("fichier_id"))
         await db.versions.update_one({"id": ancienne["id"]}, {"$set": {"statut": "archivee"}, "$unset": {"fichier_id": ""}})
-    return {"ok": True, "statut": "publiee"}
 
 
 class Reglages(BaseModel):

@@ -60,3 +60,7 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
 ## Tests avant toute livraison
 - `cd backend && python -m pytest tests -q` (base en mémoire, petits APK signés fabriqués par `tests/fabrique_apk.py`).
 - `cd frontend && npm run build`.
+
+- Jetons de dépôt (lot 8) : un jeton `ssd_…` permet de DÉPOSER des APK depuis un script (`/api/dev/depot`, `/api/dev/apps`), rien d'autre. Création / révocation dans « Mon Compte » (mot de passe redemandé,
+  `frontend/src/components/JetonsDepot.jsx`, `backend/routes/auth.py`). Seule l'empreinte est gardée, le jeton n'est montré qu'une fois. « Publication directe » : administrateur seulement, et seulement
+  pour un dépôt sans alerte (hors clé de test) ; sinon la validation de l'administrateur reste obligatoire.
