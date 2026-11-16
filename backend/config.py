@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     limite_publique_par_minute: int = 60         # appels publics par minute et par adresse IP
     apk_taille_max_mo: int = 150                 # taille maximale d'un APK déposé
     icone_taille_max_ko: int = 512               # taille maximale d'une icône
+    # --- Protection contre le gonflage des téléchargements ---
+    telechargement_part_complete: float = 0.9    # part du fichier qui doit être envoyée pour qu'un téléchargement compte
+    plafond_adresse_version_jour: int = 3        # téléchargements comptés par adresse, par version et par jour (réseaux mobiles : plusieurs abonnés partagent une adresse)
+    plafond_adresse_jour: int = 20               # téléchargements comptés par adresse et par jour, toutes applications confondues
     depots_par_jour: int = 20                    # dépôts d'APK par développeur et par jour (anti-abus)
 
     @property

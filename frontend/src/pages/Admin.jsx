@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, BadgeCheck, Ban, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Save, Search, Trash2, X, XCircle } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Ban, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Save, Search, ShieldAlert, Trash2, X, XCircle } from "lucide-react";
 import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import { IconeApp, Patientez, Recommandee, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -242,6 +242,9 @@ export default function Admin() {
           <div className="space-y-3 text-sm">
             <p className="flex flex-wrap items-center gap-2"><Statut code={reglage.statut} />{reglage.recommandee && <Recommandee />}</p>
             {reglage.motif_suspension && <p className="rounded-lg bg-red-50 p-2 text-red-900">Motif de la suspension : {reglage.motif_suspension}</p>}
+            {/* Protection contre le gonflage : téléchargements terminés mais écartés (robots, excès par adresse), gardés à part */}
+            <p className="flex items-center gap-2 rounded-lg bg-gray-50 p-2 text-gray-800"><ShieldAlert className="h-4 w-4 text-amber-700" aria-hidden="true" />
+              Téléchargements comptés : <b>{nombre(reglage.telechargements)}</b> · écartés (robots, excès par adresse) : <b>{nombre(reglage.telechargements_ecartes || 0)}</b></p>
             <button type="button" className="btn-bleu w-full" disabled={occupe} onClick={() => regler({ recommandee: !reglage.recommandee }, reglage.recommandee ? "Application retirée des recommandées" : "Application recommandée")}>
               <BadgeCheck className="h-4 w-4" aria-hidden="true" />{reglage.recommandee ? "Ne plus recommander" : "Recommander (mise en avant dans le catalogue)"}</button>
             <button type="button" className="btn-outline w-full" disabled={occupe} onClick={() => regler({ autoriser_nouveau_certificat: true }, "Le prochain dépôt pourra porter un nouveau certificat")}>

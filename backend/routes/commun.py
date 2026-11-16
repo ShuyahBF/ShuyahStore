@@ -16,7 +16,7 @@ def certificat_debug(certificats: list[dict]) -> bool:
 def version_ecran(v: dict, avec_fichier: bool = False) -> dict:
     """Version telle que l'écran la reçoit : signature, autorisations expliquées, Android minimum."""
     r = {k: v.get(k) for k in ("id", "app_id", "version_code", "version_nom", "taille", "sha256", "schemas", "certificats", "sdk_min",
-                               "sdk_cible", "nouveautes", "alertes", "statut", "motif_refus", "motif_retrait", "cree_le", "publie_le", "telechargements")}
+                               "sdk_cible", "nouveautes", "alertes", "statut", "motif_refus", "motif_retrait", "cree_le", "publie_le", "telechargements", "telechargements_ecartes")}
     r["autorisations"] = referentiel.decrire_autorisations(v.get("autorisations") or [])
     r["android_minimum"] = referentiel.android_minimum(v.get("sdk_min"))
     r["certificat_debug"] = certificat_debug(v.get("certificats") or [])
@@ -31,7 +31,7 @@ def app_ecran(a: dict, detail: bool = False) -> dict:
     cles = ["id", "paquet", "nom", "resume", "categorie", "nom_developpeur", "statut", "recommandee", "telechargements", "note_moyenne",
             "nb_avis", "maj_le", "cree_le", "version_courante", "signature_changee_le", "installations", "installations_actives", "desinstallations"]
     if detail:
-        cles += ["description", "site", "contact", "certificats_sha256", "developpeur_id", "motif_suspension"]
+        cles += ["description", "site", "contact", "certificats_sha256", "developpeur_id", "motif_suspension", "telechargements_ecartes"]
     r = {k: a.get(k) for k in cles}
     r["categorie_libelle"] = referentiel.CATEGORIES.get(a.get("categorie") or "autre", "Autre")
     r["a_icone"] = bool(a.get("icone_id"))

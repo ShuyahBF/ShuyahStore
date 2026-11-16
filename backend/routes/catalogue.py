@@ -18,6 +18,7 @@ from pymongo.errors import DuplicateKeyError
 
 import referentiel
 import stockage
+from config import get_settings
 from db import SANS_ID, db
 from limiteur import limiter_appels_publics
 from outils import iso, maintenant, origine_anonyme, sans_accents
@@ -109,6 +110,57 @@ def _plage(entete: str, taille: int) -> Optional[tuple[int, int]]:
     return debut, min(fin, taille - 1)
 
 
+# --- Protection contre le gonflage des statistiques (règle 21 : ne jamais croire sur parole, ne compter que ce que le serveur constate) ---
+_ROBOTS = re.compile(r"bot|spider|crawl|scrap|headless|python-requests|aiohttp|go-http-client|libwww|curl|wget|httpclient|java/", re.I)
+
+
+def _agent_robot(agent: str) -> bool:
+    """Vrai si l'en-tête User-Agent est celui d'un robot ou d'un script (jamais celui d'un navigateur ou de l'application Android)."""
+    return bool(not agent.strip() or _ROBOTS.search(agent))
+
+
+async def _suivre_envoi(flux, version_id: str, app_id: str, origine: str, jour: str, taille: int):
+    """Relaie le fichier au client en comptant les octets réellement envoyés. Le téléchargement n'est COMPTÉ qu'une fois terminé
+    (au moins `telechargement_part_complete` du fichier, reprises cumulées) : un robot qui s'arrête après quelques octets ne gonfle rien."""
+    envoye = 0
+    try:
+        async for bloc in flux:
+            envoye += len(bloc)
+            yield bloc
+    finally:
+        # asyncio.shield : l'enregistrement s'achève même si le client a coupé la connexion
+        await asyncio.shield(_clore_telechargement(version_id, app_id, origine, jour, taille, envoye))
+
+
+async def _clore_telechargement(version_id: str, app_id: str, origine: str, jour: str, taille: int, envoye: int) -> None:
+    """Ajoute les octets envoyés à la ligne du jour ; si le fichier est (presque) complet, décide : compté, ou ÉCARTÉ avec son motif.
+    Les téléchargements écartés ne sont pas perdus : ils sont gardés à part, visibles de l'administrateur et du développeur."""
+    s = get_settings()
+    filtre = {"version_id": version_id, "origine": origine, "jour": jour}
+    ligne = await db.telechargements.find_one_and_update(filtre, {"$inc": {"octets": envoye}}, return_document=True, projection={"_id": 0})
+    if not ligne or ligne.get("compte") or ligne.get("ecarte") or ligne["octets"] < taille * s.telechargement_part_complete:
+        return
+    motif = None
+    if ligne.get("agent_robot"):
+        motif = "robot"
+    else:
+        meme_adresse = {"adresse": ligne.get("adresse"), "jour": jour, "compte": True}
+        if await db.telechargements.count_documents({**meme_adresse, "version_id": version_id}) >= s.plafond_adresse_version_jour:
+            motif = "plafond_adresse_version"
+        elif await db.telechargements.count_documents(meme_adresse) >= s.plafond_adresse_jour:
+            motif = "plafond_adresse_jour"
+    if motif:
+        await db.telechargements.update_one(filtre, {"$set": {"ecarte": motif}})
+        await asyncio.gather(db.applications.update_one({"id": app_id}, {"$inc": {"telechargements_ecartes": 1}}),
+                             db.versions.update_one({"id": version_id}, {"$inc": {"telechargements_ecartes": 1}}))
+        return
+    # Un seul « compte » gagne même si deux envois se terminent en même temps (mise à jour conditionnelle)
+    res = await db.telechargements.update_one({**filtre, "compte": False}, {"$set": {"compte": True}})
+    if res.modified_count:
+        await asyncio.gather(db.applications.update_one({"id": app_id}, {"$inc": {"telechargements": 1}}),
+                             db.versions.update_one({"id": version_id}, {"$inc": {"telechargements": 1}}))
+
+
 @router.get("/versions/{version_id}/apk", dependencies=[Depends(limiter_appels_publics)])
 async def telecharger(version_id: str, request: Request, user: Optional[dict] = Depends(utilisateur_facultatif)):
     """Télécharge l'APK d'une version publiée. Le fichier sort de la base morceau par morceau (jamais en entier en mémoire).
@@ -123,24 +175,30 @@ async def telecharger(version_id: str, request: Request, user: Optional[dict] = 
     taille = int(v["taille"])
     plage = _plage(request.headers.get("range", ""), taille)
     debut, fin = plage or (0, taille - 1)
-    if debut == 0 and v.get("statut") == "publiee" and not prive:
+    suivi = None                                                  # (version, application, origine, jour) du téléchargement à suivre, s'il est compté
+    if v.get("statut") == "publiee" and not prive:
         appareil = appareil_valide(request.headers.get("x-appareil", ""))
         origine = f"a:{appareil}" if appareil else f"u:{user['id']}" if user else origine_anonyme(request)
-        try:
-            await db.telechargements.insert_one({"id": str(uuid.uuid4()), "version_id": v["id"], "app_id": a["id"], "origine": origine,
-                                                 "user_id": user["id"] if user else None, "appareil_id": appareil,
-                                                 "jour": date.today().isoformat(), "date": maintenant()})
-            await asyncio.gather(db.applications.update_one({"id": a["id"]}, {"$inc": {"telechargements": 1}}),
-                                 db.versions.update_one({"id": v["id"]}, {"$inc": {"telechargements": 1}}))
-        except DuplicateKeyError:
-            pass                                                  # déjà compté aujourd'hui pour cette origine
+        jour = date.today().isoformat()
+        if debut == 0:
+            try:
+                # Ligne « en cours » : le téléchargement ne sera COMPTÉ qu'une fois terminé (voir _suivre_envoi), pas au premier octet
+                await db.telechargements.insert_one({"id": str(uuid.uuid4()), "version_id": v["id"], "app_id": a["id"], "origine": origine,
+                                                     "adresse": origine_anonyme(request), "user_id": user["id"] if user else None, "appareil_id": appareil,
+                                                     "agent_robot": _agent_robot(request.headers.get("user-agent", "")), "octets": 0, "compte": False,
+                                                     "jour": jour, "date": maintenant()})
+            except DuplicateKeyError:
+                pass                                              # déjà vu aujourd'hui pour cette origine : les octets s'ajoutent à la même ligne
+        suivi = (v["id"], a["id"], origine, jour, taille)
     nom = re.sub(r"[^A-Za-z0-9._-]+", "-", f"{a['paquet']}-{v.get('version_nom') or v['version_code']}") + ".apk"
     entetes = {"Content-Disposition": f'attachment; filename="{nom}"', "Accept-Ranges": "bytes", "Content-Length": str(fin - debut + 1),
                "X-Sha256": v["sha256"], "Cache-Control": "no-store"}
     if plage:
         entetes["Content-Range"] = f"bytes {debut}-{fin}/{taille}"
-    return StreamingResponse(stockage.lire(v["fichier_id"], debut, fin), status_code=206 if plage else 200,
-                             media_type="application/vnd.android.package-archive", headers=entetes)
+    flux = stockage.lire(v["fichier_id"], debut, fin)
+    if suivi:
+        flux = _suivre_envoi(flux, *suivi)
+    return StreamingResponse(flux, status_code=206 if plage else 200, media_type="application/vnd.android.package-archive", headers=entetes)
 
 
 @router.get("/verifier/{sha256}", dependencies=[Depends(limiter_appels_publics)])
