@@ -5,6 +5,7 @@ import Admin from "@/pages/Admin";
 import Compte from "@/pages/Compte";
 import Connexion from "@/pages/Connexion";
 import Developpeur from "@/pages/Developpeur";
+import Statistiques from "@/pages/Statistiques";
 import FicheApp from "@/pages/FicheApp";
 import MesApplications from "@/pages/MesApplications";
 import Verifier from "@/pages/Verifier";
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/mes-applications" element={<MesApplications />} />
         <Route path="/compte" element={<Compte />} />
         <Route path="/developpeur" element={<Developpeur />} />
+        <Route path="/statistiques" element={<Statistiques />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<p className="card">Page introuvable.</p>} />
       </Route>

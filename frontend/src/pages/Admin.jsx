@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, BadgeCheck, Ban, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Save, Search, ShieldAlert, Trash2, X, XCircle } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Ban, BarChart3, Check, CheckCircle2, Download, Gauge, KeyRound, RefreshCw, RotateCcw, Save, Search, ShieldAlert, Trash2, X, XCircle } from "lucide-react";
 import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import { IconeApp, Patientez, Recommandee, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
@@ -10,6 +10,8 @@ import { apiClient, lienApk, messageErreur } from "@/lib/api";
 import { dateFr, dateHeure, nombre, taille } from "@/lib/format";
 import { useTri } from "@/lib/tri";
 
+const COL_ANALYSES = { nom: { type: "texte" }, developpeur: { type: "texte" }, jours_depuis_maj: { type: "nombre" }, intervalle_moyen_jours: { type: "nombre" }, delai_validation_heures: { type: "nombre" },
+  note_moyenne: { type: "nombre" }, taux_desinstallation: { type: "nombre" }, telechargements: { type: "nombre" }, points: { type: "nombre", valeur: (a) => a.points_attention.length } };
 const COL_APPS = { nom: { type: "texte" }, nom_developpeur: { type: "texte" }, statut: { type: "texte" }, telechargements: { type: "nombre" }, maj_le: { type: "date" } };
 const COL_ROUTES = { route: { type: "texte" }, appels: { type: "nombre" }, moyenne_ms: { type: "nombre" }, dernier_ms: { type: "nombre" }, maximum_ms: { type: "nombre" } };
 const COL_ATTENTE = { nom: { type: "texte", valeur: (v) => v.app.nom }, developpeur: { type: "texte", valeur: (v) => v.app.nom_developpeur }, version_code: { type: "nombre" }, taille: { type: "nombre" }, cree_le: { type: "date" } };
@@ -29,20 +31,22 @@ export default function Admin() {
   const [versionsApp, setVersionsApp] = useState(null);          // versions de l'application réglée (null = chargement)
   const [aRetirer, setARetirer] = useState(null);                // version publiée dont on prépare le retrait (fenêtre dans la fenêtre)
   const [motifRetrait, setMotifRetrait] = useState("");
+  const [analyses, setAnalyses] = useState(null);              // analyses de toutes les applications (rythme des mises à jour, avis, désinstallations…)
   const [params, setParams] = useState(null);                  // réglages de la plateforme (lus sur le serveur)
   const [nbVersions, setNbVersions] = useState("");              // saisie : versions d'APK conservées par application
   const [occupe, setOccupe] = useState(false);
   const triAttente = useTri(t?.en_attente, COL_ATTENTE);
   const triSignalements = useTri(t?.signalements, COL_SIGNALEMENTS);
   const triApps = useTri(apps, COL_APPS);
+  const triAnalyses = useTri(analyses, COL_ANALYSES);
   const triRoutes = useTri(routes, COL_ROUTES);
 
   const charger = useCallback(async (annonce = false) => {
     if (annonce) toast.info("Actualisation de l'administration en cours…");
     try {
       // Les trois lectures partent EN MÊME TEMPS ; une section lente ne bloque pas les autres
-      const [tableau, liste, lents, reglages] = await Promise.all([apiClient.get("/admin/tableau"), apiClient.get("/admin/apps"), apiClient.get("/admin/appels-lents"), apiClient.get("/admin/parametres")]);
-      setT(tableau.data); setApps(liste.data.apps); setRoutes(lents.data.routes); setParams(reglages.data); setNbVersions(String(reglages.data.versions_conservees));
+      const [tableau, liste, lents, reglages, ana] = await Promise.all([apiClient.get("/admin/tableau"), apiClient.get("/admin/apps"), apiClient.get("/admin/appels-lents"), apiClient.get("/admin/parametres"), apiClient.get("/admin/analyses")]);
+      setAnalyses(ana.data.apps); setT(tableau.data); setApps(liste.data.apps); setRoutes(lents.data.routes); setParams(reglages.data); setNbVersions(String(reglages.data.versions_conservees));
       if (annonce) toast.succes(`Relu : ${tableau.data.en_attente.length} version(s) à valider, ${tableau.data.signalements.length} signalement(s), ${liste.data.apps.length} application(s)`);
     } catch (err) { toast.erreur(messageErreur(err, "Administration indisponible")); }
   }, [toast]);
@@ -165,6 +169,33 @@ export default function Admin() {
                   <td>{s.connecte ? <>{s.auteur} <span className="text-xs text-gray-500">(compte)</span></> : <span className="text-xs text-gray-500">visiteur sans compte</span>}</td>
                   <td className="tabular-nums">{dateHeure(s.cree_le)}</td>
                   <td><button type="button" className="btn-outline btn-sm" onClick={() => traiter(s)}><Check className="h-4 w-4 text-emerald-700" aria-hidden="true" />Classer</button></td>
+                </tr>))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Analyses : rythme et ancienneté des mises à jour, rapidité de validation, avis, désinstallations (elles AIDENT la décision, elles ne décident pas) */}
+      <section className="space-y-2">
+        <h2 className="flex items-center gap-2 text-lg font-bold"><BarChart3 className="h-5 w-5 text-primary" aria-hidden="true" />Analyses des applications</h2>
+        {!analyses?.length ? <p className="card text-sm text-gray-600">Aucune application à analyser.</p> : (
+          <div className="card overflow-x-auto p-0 sm:p-0">
+            <table className="table">
+              <thead><tr><ThTri cle="nom" {...triAnalyses}>Application</ThTri><ThTri cle="developpeur" {...triAnalyses}>Développeur</ThTri>
+                <ThTri cle="jours_depuis_maj" {...triAnalyses} droite>Dernière mise à jour (jours)</ThTri><ThTri cle="intervalle_moyen_jours" {...triAnalyses} droite>Rythme (jours)</ThTri>
+                <ThTri cle="delai_validation_heures" {...triAnalyses} droite>Validation (h)</ThTri><ThTri cle="note_moyenne" {...triAnalyses} droite>Note</ThTri>
+                <ThTri cle="taux_desinstallation" {...triAnalyses} droite>Désinstallées</ThTri><ThTri cle="telechargements" {...triAnalyses} droite>Téléchargements</ThTri>
+                <ThTri cle="points" {...triAnalyses} droite>Points d'attention</ThTri></tr></thead>
+              <tbody>{triAnalyses.triees.map((a) => (
+                <tr key={a.id}>
+                  <td className="font-semibold">{a.nom}</td><td>{a.developpeur}</td>
+                  <td className={`text-right ${a.jours_depuis_maj > 90 ? "font-semibold text-red-700" : ""}`}>{a.jours_depuis_maj ?? "—"}</td>
+                  <td className="text-right">{a.intervalle_moyen_jours ?? "—"}</td>
+                  <td className={`text-right ${a.delai_validation_heures > 48 ? "font-semibold text-amber-700" : ""}`}>{a.delai_validation_heures ?? "—"}</td>
+                  <td className="text-right">{a.nb_avis ? `${a.note_moyenne.toFixed(1)} (${a.nb_avis})` : "—"}</td>
+                  <td className={`text-right ${a.taux_desinstallation > 0.4 ? "font-semibold text-red-700" : ""}`}>{a.taux_desinstallation === null ? "—" : `${Math.round(a.taux_desinstallation * 100)} %`}</td>
+                  <td className="text-right">{nombre(a.telechargements)}{a.telechargements_ecartes ? <span className="text-xs text-amber-800"> (+{a.telechargements_ecartes} écartés)</span> : null}</td>
+                  <td className="text-right">{a.points_attention.length ? <span className="inline-flex items-center gap-1 text-amber-800" title={a.points_attention.join("\n")}><AlertTriangle className="h-4 w-4" aria-hidden="true" />{a.points_attention.length}</span> : <span className="text-gray-500">0</span>}</td>
                 </tr>))}</tbody>
             </table>
           </div>
