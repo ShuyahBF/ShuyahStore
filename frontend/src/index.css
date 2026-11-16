@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base : textes en Open Sans, titres en Sora, fond sable clair (charte ShuyahStore) */
+@layer base {
+  body { @apply bg-sable font-sans text-ink antialiased; }
+  html, body { max-width: 100%; overflow-x: clip; }            /* aucune page ne déborde de la largeur de l'écran */
+  input[type="checkbox"], input[type="radio"] { accent-color: #1d4ed8; }
+  h1, h2, h3, h4 { @apply font-display font-semibold tracking-tight; }
+}
+
+/* Petits composants réutilisables (classes « maison ») */
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-ocre text-white shadow-sm hover:bg-orange-800; }                 /* action principale : orange plein */
+  .btn-bleu { @apply btn bg-primary text-white shadow-sm hover:bg-primary-dark; }
+  .btn-vert { @apply btn bg-verifie text-white shadow-sm hover:bg-emerald-800; }
+  .btn-outline { @apply btn border border-gray-300 bg-white text-ink hover:border-gray-400 hover:bg-gray-50; }
+  .btn-danger { @apply btn bg-red-700 text-white hover:bg-red-800; }
+  .btn-sm { @apply px-3 py-1.5; }
+  /* Champs de saisie mis en évidence : bordure franche, halo au clic, rouge si la valeur est invalide */
+  .input { @apply w-full rounded-lg border-2 border-gray-300 bg-white px-3 py-2.5 text-ink shadow-sm outline-none transition placeholder:text-gray-400 hover:border-primary/60 focus:border-primary focus:ring-4 focus:ring-primary/25 disabled:bg-gray-100 disabled:text-gray-500; }
+  .input:user-invalid { @apply border-red-500 focus:border-red-500 focus:ring-red-200; }
+  .label { @apply mb-1.5 block text-sm font-semibold text-ink; }
+  .label:has(+ .input:required)::after { content: " *"; color: #dc2626; }
+  .card { @apply rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5; }
+  .badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+  .table { @apply w-full text-left text-sm; }
+  .table th { @apply border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-600; }
+  .table td { @apply border-b border-gray-100 px-3 py-2 align-middle; }
+}
+
+/* Tableaux (règle 3, sur TOUT tableau) : ligne survolée = fond bleu clair transparent ;
+   ligne sélectionnée = fond orange clair #f6a35b, police BLEU NUIT #0A1E3D (contraste 7,7:1). */
+tbody tr:hover > td, tbody tr:hover > th { background-color: rgba(56, 189, 248, 0.16); }
+tr.ligne-selectionnee > td, tr.ligne-selectionnee > th,
+tr[aria-selected="true"] > td, tr[aria-selected="true"] > th,
+tr[data-selected="true"] > td, tr[data-selected="true"] > th,
+tr:has(> td:first-child input[type="checkbox"]:checked) > td,
+tr:has(> td:first-child input[type="checkbox"]:checked) > th { background-color: #f6a35b; color: #0A1E3D; }
+tr.ligne-selectionnee [class*="text-"]:not(.badge):not(button):not(a),
+tr[aria-selected="true"] [class*="text-"]:not(.badge):not(button):not(a) { color: #0A1E3D; }
+
+/* Jauge circulaire transparente (arc qui tourne) pour les attentes longues */
+@keyframes tourne { to { transform: rotate(360deg); } }
+.jauge { width: 2.5rem; height: 2.5rem; border-radius: 9999px; border: 4px solid rgba(29, 78, 216, 0.18); border-top-color: #1d4ed8; animation: tourne 0.9s linear infinite; }
+.jauge-petite { width: 1.1rem; height: 1.1rem; border-width: 3px; }

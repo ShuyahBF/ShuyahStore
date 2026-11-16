@@ -1,0 +1,68 @@
+# Déploiement Render de ShuyahStore (New > Blueprint > ce dépôt).
+# Les variables marquées « sync: false » sont des SECRETS : Render les demande au premier déploiement et les garde chiffrées
+# (jamais de secret dans ce fichier ni dans le dépôt).
+services:
+  # --------------------------------------------------------------------------
+  # API FastAPI : comptes, dépôt et vérification des APK, catalogue, téléchargements
+  # --------------------------------------------------------------------------
+  - type: web
+    name: shuyahstore-api
+    runtime: python
+    plan: starter            # payant : le service ne s'endort pas (un téléchargement ne doit pas attendre 50 s)
+    autoDeploy: true
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      # --- SECRETS (à saisir par le propriétaire dans le tableau de bord Render) ---
+      - key: MONGO_URL          # chaîne Atlas mongodb+srv://… (les APK sont stockés dans cette base)
+        sync: false
+      - key: ADMIN_EMAIL        # compte administrateur, créé au démarrage
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET         # généré par Render
+        generateValue: true
+      # --- Valeurs non secrètes ---
+      - key: MONGO_DB_NAME
+        value: shuyahstore
+      # Adresse(s) du site, séparées par des virgules (CORS et cookie de session). À compléter avec le nom de domaine définitif.
+      - key: FRONTEND_ORIGIN
+        value: https://shuyahstore-site.onrender.com
+      - key: PUBLIC_SITE_URL
+        value: https://shuyahstore-site.onrender.com
+      - key: APK_TAILLE_MAX_MO
+        value: "150"
+
+  # --------------------------------------------------------------------------
+  # Site statique React (gratuit)
+  # --------------------------------------------------------------------------
+  - type: web
+    name: shuyahstore-site
+    runtime: static
+    autoDeploy: true
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Adresse de l'API : à corriger si Render ajoute un suffixe au nom du service (ex. shuyahstore-api-ab12.onrender.com)
+      - key: VITE_API_BASE_URL
+        value: https://shuyahstore-api.onrender.com/api
+    # Toutes les adresses du site (ex. /app/com.exemple) renvoient la page unique de l'application
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
