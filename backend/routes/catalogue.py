@@ -84,7 +84,11 @@ async def icone(reference: str):
     f = await stockage.fiche(a["icone_id"]) if a and a.get("icone_id") else None
     if not f:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pas d'icône")
-    return StreamingResponse(stockage.lire(f["id"]), media_type=f["type"], headers={"Cache-Control": "public, max-age=86400", "Content-Length": str(f["taille"])})
+    entetes = {"Cache-Control": "public, max-age=86400", "Content-Length": str(f["taille"]), "X-Content-Type-Options": "nosniff"}
+    if f["type"] == "image/svg+xml":
+        # SVG fabriqué par ShuyahStore à partir de l'APK : consigne de sécurité en plus (aucun script, aucune ressource externe)
+        entetes["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+    return StreamingResponse(stockage.lire(f["id"]), media_type=f["type"], headers=entetes)
 
 
 def appareil_valide(valeur: str) -> Optional[str]:

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ExternalLink, ImageUp, KeyRound, LogIn, Pencil, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, ExternalLink, ImageDown, ImageUp, KeyRound, LogIn, Pencil, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
 import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import CleSignature from "@/components/CleSignature";
 import { IconeApp, Patientez, Statut, ThTri } from "@/components/Communs";
@@ -74,6 +74,12 @@ export default function Developpeur() {
     try { await apiClient.post(`/dev/apps/${app.id}/icone`, corps); toast.succes("Icône enregistrée"); await charger(); }
     catch (err) { toast.erreur(messageErreur(err, "Icône refusée")); }
   };
+  // Reprend l'icône contenue dans le dernier APK déposé (image ou icône adaptative convertie en SVG)
+  const iconeDepuisApk = async (app) => {
+    toast.info("Lecture de l'icône dans l'APK en cours…");
+    try { await apiClient.post(`/dev/apps/${app.id}/icone/depuis-apk`); toast.succes(`Icône de « ${app.nom} » reprise depuis l'APK`); await charger(); }
+    catch (err) { toast.erreur(messageErreur(err, "Icône de l'APK illisible")); }
+  };
   const retirerVersion = async (v) => {
     if (!window.confirm(`Retirer la version ${v.version_nom || v.version_code} en attente ?`)) return;
     toast.info("Retrait de la version en cours…");
@@ -127,6 +133,7 @@ export default function Developpeur() {
                     <button type="button" className="btn-outline btn-sm" title="Modifier la fiche" aria-label={`Modifier la fiche de ${a.nom}`} onClick={() => setFiche({ ...a })}><Pencil className="h-4 w-4 text-primary" aria-hidden="true" /></button>
                     <label className="btn-outline btn-sm cursor-pointer" title="Changer l'icône (PNG, JPEG ou WebP, 512 Ko au plus)"><ImageUp className="h-4 w-4 text-purple-700" aria-hidden="true" /><span className="sr-only">Changer l'icône de {a.nom}</span>
                       <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => { changerIcone(a, e.target.files?.[0]); e.target.value = ""; }} /></label>
+                    <button type="button" className="btn-outline btn-sm" title="Reprendre l'icône contenue dans l'APK" aria-label={`Reprendre l'icône de l'APK de ${a.nom}`} onClick={() => iconeDepuisApk(a)}><ImageDown className="h-4 w-4 text-sky-700" aria-hidden="true" /></button>
                     <button type="button" className="btn-outline btn-sm" title="Versions et signature" aria-label={`Versions et signature de ${a.nom}`} onClick={() => setDetail(a.id)}><KeyRound className="h-4 w-4 text-emerald-700" aria-hidden="true" /></button>
                     {a.statut === "publiee" && <Link to={`/app/${a.paquet}`} className="btn-outline btn-sm" title="Voir la fiche publique" aria-label={`Voir la fiche publique de ${a.nom}`}><ExternalLink className="h-4 w-4 text-gray-700" aria-hidden="true" /></Link>}
                   </div></td>
