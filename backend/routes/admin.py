@@ -20,7 +20,28 @@ from routes.commun import app_ecran, texte, version_ecran
 from securite import require_admin
 
 router = APIRouter(prefix="/admin", tags=["Administration"], dependencies=[Depends(require_admin)])
-VERSIONS_CONSERVEES = 3          # fichiers des versions publiées gardés par application (la base a une taille limitée)
+VERSIONS_CONSERVEES = 3          # valeur PAR DÉFAUT : fichiers des versions publiées gardés par application (la base a une taille limitée)
+VERSIONS_MIN, VERSIONS_MAX = 1, 20   # bornes du réglage « versions conservées » (au moins la version courante ; 20 au plus pour ne pas saturer la base)
+
+
+async def versions_conservees() -> int:
+    """Nombre de versions publiées dont le FICHIER est gardé par application : réglage de l'administrateur (collection « parametres »),
+    à défaut 3. Les plus anciennes sont archivées (la fiche reste, le fichier est supprimé)."""
+    p = await db.parametres.find_one({"id": "plateforme"}, SANS_ID)
+    try:
+        n = int((p or {}).get("versions_conservees", VERSIONS_CONSERVEES))
+    except (TypeError, ValueError):
+        n = VERSIONS_CONSERVEES
+    return max(VERSIONS_MIN, min(VERSIONS_MAX, n))
+
+
+async def archiver_anciennes(app_id: str, conservees: int) -> int:
+    """Archive les versions publiées au-delà des `conservees` plus récentes d'UNE application (fichier supprimé) ; rend le nombre archivé."""
+    anciennes = await db.versions.find({"app_id": app_id, "statut": "publiee"}, SANS_ID).sort("version_code", -1).skip(conservees).to_list(200)
+    for ancienne in anciennes:
+        await stockage.supprimer(ancienne.get("fichier_id"))
+        await db.versions.update_one({"id": ancienne["id"]}, {"$set": {"statut": "archivee"}, "$unset": {"fichier_id": ""}})
+    return len(anciennes)
 
 
 @router.get("/tableau")
@@ -82,10 +103,7 @@ async def publier_version(v: dict, a: dict) -> None:
     await db.applications.update_one({"id": a["id"]}, {"$set": {"statut": "publiee" if a["statut"] != "suspendue" else "suspendue",
                                                                "version_courante": courante, "maj_le": moment}})
     # Les fichiers des versions publiées les plus anciennes sont libérés (la fiche de la version reste, marquée « archivée »)
-    anciennes = await db.versions.find({"app_id": a["id"], "statut": "publiee"}, SANS_ID).sort("version_code", -1).skip(VERSIONS_CONSERVEES).to_list(100)
-    for ancienne in anciennes:
-        await stockage.supprimer(ancienne.get("fichier_id"))
-        await db.versions.update_one({"id": ancienne["id"]}, {"$set": {"statut": "archivee"}, "$unset": {"fichier_id": ""}})
+    await archiver_anciennes(a["id"], await versions_conservees())
 
 
 @router.get("/apps/{app_id}/versions")
@@ -95,6 +113,27 @@ async def versions_de_l_application(app_id: str):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Application introuvable")
     versions = await db.versions.find({"app_id": app_id}, SANS_ID).sort("version_code", -1).to_list(200)
     return {"versions": [version_ecran(v) for v in versions]}
+
+
+class Parametres(BaseModel):
+    versions_conservees: int = Field(VERSIONS_CONSERVEES, ge=VERSIONS_MIN, le=VERSIONS_MAX)
+
+
+@router.get("/parametres")
+async def lire_parametres():
+    """Réglages de la plateforme modifiables par l'administrateur."""
+    return {"versions_conservees": await versions_conservees(), "minimum": VERSIONS_MIN, "maximum": VERSIONS_MAX, "defaut": VERSIONS_CONSERVEES}
+
+
+@router.put("/parametres")
+async def modifier_parametres(data: Parametres):
+    """Règle le nombre de versions d'APK conservées par application. S'applique TOUT DE SUITE : les versions publiées au-delà de la limite
+    sont archivées (leur fichier est supprimé pour libérer la base ; la fiche de la version reste). Rend le nombre de versions archivées."""
+    await db.parametres.update_one({"id": "plateforme"}, {"$set": {"versions_conservees": data.versions_conservees}}, upsert=True)
+    archivees = 0
+    async for a in db.applications.find({}, {"_id": 0, "id": 1}):
+        archivees += await archiver_anciennes(a["id"], data.versions_conservees)
+    return {"versions_conservees": data.versions_conservees, "archivees": archivees}
 
 
 class Retrait(BaseModel):
