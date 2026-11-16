@@ -306,3 +306,25 @@ def test_nombre_de_versions_conservees_reglable(client, compte, admin):
     assert etats() == {1: "archivee", 2: "archivee", 3: "archivee", 4: "publiee", 5: "publiee"}
     # remise du réglage par défaut : la base des tests est partagée entre les tests
     assert client.put("/api/admin/parametres", headers=admin, json={"versions_conservees": 3}).status_code == 200
+
+
+def test_gonflage_des_telechargements_ecarte(client, compte, admin):
+    """Un téléchargement n'est compté qu'une fois terminé ; les robots et les excès par adresse sont ÉCARTÉS (gardés à part, jamais comptés)."""
+    _, h, app, v, _ = application_publiee(client, compte, admin, code=1)
+    lien = f"/api/versions/{v['id']}/apk"
+    lu = lambda: client.get(f"/api/apps/{app['id']}").json()["app"]["telechargements"]
+    ecartes = lambda: client.get(f"/api/admin/apps", headers=admin).json()["apps"][0]["telechargements_ecartes"] or 0
+    # 1. un robot qui n'envoie que le début du fichier : rien n'est compté
+    assert client.get(lien, headers={"Range": "bytes=0-9"}).status_code == 206
+    assert lu() == 0
+    # 2. reprises cumulées : le reste du fichier arrive, le téléchargement est compté UNE fois
+    taille = int(client.get(lien, headers={"Range": "bytes=0-0"}).headers["content-range"].split("/")[1])
+    assert client.get(lien, headers={"Range": f"bytes=10-{taille - 1}"}).status_code == 206
+    assert lu() == 1
+    # 3. un script (curl, python-requests…) : fichier complet mais écarté comme robot
+    assert client.get(lien, headers={"User-Agent": "python-requests/2.31", "X-Appareil": "00000000-0000-4000-8000-000000000001"}).status_code == 200
+    assert lu() == 1 and ecartes() == 1
+    # 4. une même adresse avec des identifiants d'appareil inventés : au-delà de 3 par version et par jour, écarté
+    for i in range(2, 7):
+        assert client.get(lien, headers={"X-Appareil": f"00000000-0000-4000-8000-00000000010{i}"}).status_code == 200
+    assert lu() == 3 and ecartes() == 4                                                 # 1 reprise + 2 appareils comptés ; robot + 3 excès écartés
