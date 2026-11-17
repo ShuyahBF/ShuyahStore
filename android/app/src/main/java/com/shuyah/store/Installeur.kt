@@ -54,18 +54,34 @@ object Installeur {
 
     private fun hex(octets: ByteArray): String = octets.joinToString("") { "%02x".format(it) }
 
-    /** Paquet et empreintes SHA-256 des certificats de signature lus DANS le fichier APK (sans l'installer). */
+    /** Empreintes SHA-256 (hexadécimal) d'une liste de signatures Android. */
+    private fun empreintesDe(signatures: Array<android.content.pm.Signature>?): List<String> =
+        signatures.orEmpty().map { hex(MessageDigest.getInstance("SHA-256").digest(it.toByteArray())) }
+
+    /**
+     * Paquet et empreintes SHA-256 des certificats de signature lus DANS le fichier APK (sans l'installer).
+     * CORRECTIF (version 1.2) : on réunit les signataires ACTUELS (`apkContentsSigners`) et l'historique des certificats (`signingCertificateHistory`).
+     * Avant, seul l'historique était lu : pour un APK signé sans « chaîne de certificats » (schéma v2 seul), il est vide, et toute installation était
+     * refusée à tort (« sa signature n'est pas celle affichée par ShuyahStore »).
+     */
     private fun lireArchive(c: Context, fichier: File): Pair<String, List<String>>? {
         val pm = c.packageManager
         @Suppress("DEPRECATION")
         val info = (if (Build.VERSION.SDK_INT >= 28) pm.getPackageArchiveInfo(fichier.path, PackageManager.GET_SIGNING_CERTIFICATES)
                     else pm.getPackageArchiveInfo(fichier.path, PackageManager.GET_SIGNATURES)) ?: return null
         @Suppress("DEPRECATION")
-        val signatures = if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.let { if (it.hasMultipleSigners()) it.apkContentsSigners else it.signingCertificateHistory }
-                         else info.signatures
-        val empreintes = signatures.orEmpty().map { hex(MessageDigest.getInstance("SHA-256").digest(it.toByteArray())) }
-        return info.packageName to empreintes
+        val empreintes = if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.let { empreintesDe(it.apkContentsSigners) + empreintesDe(it.signingCertificateHistory) }.orEmpty()
+                         else empreintesDe(info.signatures)
+        return info.packageName to empreintes.distinct()
     }
+
+    /** Empreintes SHA-256 des certificats de l'application DÉJÀ INSTALLÉE sur ce téléphone (vide si elle n'est pas installée). */
+    fun certificatsInstalles(c: Context, paquet: String): Set<String> = try {
+        val pm = c.packageManager
+        @Suppress("DEPRECATION")
+        if (Build.VERSION.SDK_INT >= 28) pm.getPackageInfo(paquet, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo?.let { empreintesDe(it.apkContentsSigners) + empreintesDe(it.signingCertificateHistory) }.orEmpty().toSet()
+        else empreintesDe(pm.getPackageInfo(paquet, PackageManager.GET_SIGNATURES).signatures).toSet()
+    } catch (_: Exception) { emptySet() }
 
     /**
      * Télécharge la version `versionId`, la vérifie, puis lance la demande d'installation d'Android.
@@ -104,7 +120,18 @@ object Installeur {
                 val (paquetLu, empreintes) = lireArchive(a, fichier) ?: run { fichier.delete(); echec("Fichier refusé : Android ne reconnaît pas cette application."); return@Thread }
                 if (paquetLu != paquet) { fichier.delete(); echec("Fichier refusé : il contient une autre application ($paquetLu)."); return@Thread }
                 val attendues = (0 until certificats.length()).map { certificats.getString(it).lowercase() }
-                if (attendues.isEmpty() || empreintes.none { it in attendues }) { fichier.delete(); echec("Fichier refusé : sa signature n'est pas celle affichée par ShuyahStore."); return@Thread }
+                if (attendues.isEmpty() || empreintes.none { it in attendues }) {
+                    fichier.delete()
+                    echec("Fichier refusé : sa signature n'est pas celle affichée par ShuyahStore (fichier : ${empreintes.firstOrNull()?.take(8) ?: "illisible"}…, attendue : ${attendues.firstOrNull()?.take(8) ?: "aucune"}…).")
+                    return@Thread
+                }
+                // Application déjà installée avec une AUTRE clé (ex. ancienne version signée avec la clé de test) : Android refuserait de la remplacer
+                val installees = certificatsInstalles(a, paquet)
+                if (installees.isNotEmpty() && installees.none { it in empreintes }) {
+                    fichier.delete()
+                    echec("L'application installée sur ce téléphone est signée avec une autre clé : Android refuse de la remplacer. Sauvegardez vos données si l'application le permet, désinstallez-la, puis installez cette version.")
+                    return@Thread
+                }
                 // 3. demande d'installation à Android (l'utilisateur confirme dans la fenêtre du système)
                 val installeur = a.packageManager.packageInstaller
                 val reglages = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply { setAppPackageName(paquet); setSize(fichier.length()) }

@@ -58,14 +58,6 @@ object MajNotifications {
     }
     fun annuler(c: Context) { (c.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler).cancel(ID_JOB) }
 
-    /** Empreinte SHA-256 (hexadécimal) des certificats de signature de l'application installée. */
-    private fun certificatsInstalles(c: Context, paquet: String): Set<String> = try {
-        val pm = c.packageManager
-        val signatures = if (Build.VERSION.SDK_INT >= 28) pm.getPackageInfo(paquet, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo?.apkContentsSigners
-        else @Suppress("DEPRECATION") pm.getPackageInfo(paquet, PackageManager.GET_SIGNATURES).signatures
-        (signatures ?: emptyArray()).map { s -> MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) } }.toSet()
-    } catch (_: Exception) { emptySet() }
-
     /** Index public du catalogue (ou null si le serveur ne répond pas). */
     private fun lireIndex(): JSONArray? = try {
         val cx = URL(BuildConfig.API_URL.trimEnd('/') + "/index").openConnection() as HttpURLConnection
@@ -83,7 +75,7 @@ object MajNotifications {
             if (v.optLong("version_code") <= installee) continue
             val cles = a.optJSONArray("certificats_sha256") ?: JSONArray()
             val attendues = (0 until cles.length()).map { cles.optString(it).lowercase() }.toSet()
-            if (certificatsInstalles(c, paquet).none { it in attendues }) continue          // signature différente : Android refuserait la mise à jour
+            if (Installeur.certificatsInstalles(c, paquet).none { it in attendues }) continue          // signature différente : Android refuserait la mise à jour
             liste.add(Maj(paquet, a.optString("nom", paquet), v.optString("version_nom", v.optLong("version_code").toString()), v.optLong("version_code")))
         }
         return liste
