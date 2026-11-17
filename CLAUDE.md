@@ -93,3 +93,6 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
   4. JOURNALISER chaque consultation et décision (qui, quoi, quand, IP) — jamais le contenu ni le numéro — et rendre le journal consultable.
   5. LIMITER les abus (essais par IP) et ne jamais approuver automatiquement sans lecture fiable ; une même pièce n'ouvre pas deux comptes.
   6. Dire l'envoi à un service d'IA dans la politique de confidentialité. Tests : `tests/test_cnib.py`.
+
+- Vérification manuelle forcée (lot 26, 17/11/2026 : « donne à l'administrateur de forcer une validation des pièces si l'appareil photo est de mauvaise qualité ») : case « Demander une vérification manuelle » à l'inscription et dans « Ma CNIB ».
+  Cochée, un défaut de QUALITÉ (flou, petite photo, noir et blanc) mène à la revue humaine au lieu d'un refus ; les défauts de FOND (pas une CNIB, photocopie / capture, expirée, mineur, fichier illisible) restent refusés. L'administrateur approuve en « forçant » (journal : `approuvee_forcee`) ou refuse avec motif.
