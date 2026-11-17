@@ -31,6 +31,7 @@ export default function Connexion() {
   // Lot 24 : à l'inscription, la photo de la CNIB est exigée quand le serveur le demande (réglage CNIB_A_L_INSCRIPTION)
   const [exigences, setExigences] = useState({ cnib_obligatoire: false, taille_max_mo: 8 });
   const [photoCnib, setPhotoCnib] = useState(null);
+  const [manuelle, setManuelle] = useState(false);                  // vérification manuelle demandée (appareil photo de mauvaise qualité)
   useEffect(() => { apiClient.get("/auth/inscription/exigences").then((r) => setExigences(r.data)).catch(() => {}); }, []);
   const suite = params.get("suite") || "/";
   if (user) return <Navigate to={suite} replace />;
@@ -63,7 +64,7 @@ export default function Connexion() {
     if (creation && exigences.cnib_obligatoire && !photoCnib) { toast.erreur("Ajoutez la photo couleur de votre CNIB pour créer le compte"); return; }
     setOccupe(true); toast.info(creation ? (exigences.cnib_obligatoire ? "Analyse de la CNIB et création du compte… Patientez…" : "Création du compte en cours…") : "Connexion en cours… Patientez…");
     try {
-      const u = creation ? await inscrire(f.nom, f.email, f.mdp, f.whatsapp, exigences.cnib_obligatoire ? photoCnib : null) : await connecter(f.email, f.mdp, etape2 ? code : "", wa ? codeWa : "");
+      const u = creation ? await inscrire(f.nom, f.email, f.mdp, f.whatsapp, exigences.cnib_obligatoire ? photoCnib : null, manuelle) : await connecter(f.email, f.mdp, etape2 ? code : "", wa ? codeWa : "");
       if (u.wa_requis) { setWa(u); setCodeWa(""); toast.info(`Mot de passe accepté. Un code vient d'être envoyé sur WhatsApp au ${u.numero_masque}.`); return; }
       if (u.cnib?.statut === "a_verifier") toast.info("Votre CNIB doit être vérifiée par un administrateur avant que vous puissiez déposer des applications.");
       if (u.whatsapp_code_envoye) toast.info("Un code de vérification a été envoyé sur votre WhatsApp : saisissez-le dans « Mon Compte ».");
@@ -106,7 +107,7 @@ export default function Connexion() {
           <p className="mt-1 text-xs text-gray-600">Il reçoit votre code de connexion, envoyé par Liluvine.</p></div>}
         {creation && <div><label className="label" htmlFor="c-mdp2">Répétez le mot de passe</label>
           <ChampMotDePasse id="c-mdp2" required maxLength={128} value={f.mdp2} onChange={champ("mdp2")} autoComplete="new-password" /></div>}
-        {creation && exigences.cnib_obligatoire && <ChampCnib fichier={photoCnib} onChange={setPhotoCnib} tailleMaxMo={exigences.taille_max_mo} />}
+        {creation && exigences.cnib_obligatoire && <ChampCnib fichier={photoCnib} onChange={setPhotoCnib} tailleMaxMo={exigences.taille_max_mo} manuelle={manuelle} onManuelle={setManuelle} />}
         {/* Étape 2 (WhatsApp) : code de la demande de connexion reçu par Liluvine */}
         {wa && !creation && (
           <div className="space-y-2 rounded-lg border-2 border-emerald-400 bg-emerald-50 p-3" data-testid="etape-wa">

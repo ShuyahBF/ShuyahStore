@@ -200,7 +200,7 @@ def test_photo_supprimee_apres_decision_et_journal(client, cnib_active, admin):
     # après approbation : plus de photo
     assert client.get(f"/api/admin/cnib/{fiche['id']}/image", headers=admin).status_code == 404
     actions = [a["action"] for a in client.get("/api/admin/cnib/journal", headers=admin).json()["acces"]]
-    assert {"liste", "photo_vue", "approuvee"} <= set(actions)
+    assert {"liste", "photo_vue", "approuvee_forcee"} <= set(actions)
     assert all("B27182818" not in str(a) for a in client.get("/api/admin/cnib/journal", headers=admin).json()["acces"])
 
 
@@ -232,3 +232,44 @@ def test_cle_dediee_et_rotation(monkeypatch):
     assert cnib.dechiffrer(nouveau) is None                        # sans la clé dédiée, illisible même avec JWT_SECRET
     assert cnib.empreintes_numero("B1")[0] != cnib.empreintes_numero("B2")[0]
     assert len(cnib.empreintes_numero("B1")) == 1
+
+
+# ------------------------------------------------------------------ vérification manuelle (appareil photo de mauvaise qualité)
+def test_flou_refuse_sans_demande_et_conseil_donne(client, cnib_active):
+    cnib_active["lecture"] = lecture(lisible=False)
+    r = inscrire(client)
+    assert r.status_code == 422 and "vérification manuelle" in r.text
+
+
+def inscrire_manuel(client, image=None):
+    _n["i"] += 1
+    r = client.post("/api/auth/inscription-cnib", data={"nom": "BADINI Awa", "email": f"cnib.man{_n['i']}@gmail.com", "mot_de_passe": "motdepasse-123", "whatsapp": f"+2267200{_n['i']:04d}", "revue_manuelle": "true"},
+                    files={"cnib_photo": ("cnib.jpg", image or photo(), "image/jpeg")})
+    client.cookies.clear()
+    return r
+
+
+def test_flou_avec_demande_va_a_la_revue_puis_force_par_admin(client, cnib_active, admin):
+    cnib_active["lecture"] = lecture(lisible=False, numero=None, date_expiration=None)
+    r = inscrire_manuel(client)
+    assert r.status_code == 201 and r.json()["user"]["cnib_statut"] == "a_verifier"
+    fiche = next(f for f in client.get("/api/admin/cnib", headers=admin).json()["cnib"] if f["user_id"] == r.json()["user"]["id"])
+    assert fiche["revue_manuelle_demandee"] is True and "Vérification manuelle demandée" in " ".join(fiche["raisons"])
+    assert client.post(f"/api/admin/cnib/{fiche['id']}/decision", headers=admin, json={"approuver": True}).json()["statut"] == "verifiee"
+    assert "approuvee_forcee" in [a["action"] for a in client.get("/api/admin/cnib/journal", headers=admin).json()["acces"]]
+
+
+def test_grise_et_petite_acceptees_seulement_en_manuel(client, cnib_active):
+    cnib_active["lecture"] = lecture(numero="B77665544")
+    assert inscrire(client, image=photo(couleur=False)).status_code == 422
+    assert inscrire_manuel(client, image=photo(couleur=False, cote=400)).status_code == 201
+
+
+def test_defauts_de_fond_refuses_meme_en_manuel(client, cnib_active):
+    for kw in ({"date_expiration": "2020-01-01"}, {"type_document": "passeport"}, {"capture_ecran_ou_photocopie": True}):
+        cnib_active["lecture"] = lecture(**kw)
+        assert inscrire_manuel(client).status_code == 422
+
+
+def test_pas_une_image_refuse_meme_en_manuel(client, cnib_active):
+    assert inscrire_manuel(client, image=b"pas une image").status_code == 422

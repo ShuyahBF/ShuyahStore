@@ -34,6 +34,7 @@ logger = logging.getLogger("shuyahstore.cnib")
 
 TAILLE_MAX_OCTETS = 8 * 1024 * 1024
 COTE_MIN_PX = 400                      # le petit côté de la photo : en dessous, le texte de la carte n'est pas lisible
+COTE_MIN_SOUPLE_PX = 200
 COTE_MAX_PX = 1600                     # réencodage : suffisant pour lire, léger à stocker
 SATURATION_MIN = 0.07                  # saturation moyenne (0 à 1) : en dessous, photo en noir et blanc / photocopie
 FORMATS = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
@@ -107,8 +108,9 @@ class ImageRefusee(Exception):
     """Image inutilisable ; le message est lisible par la personne."""
 
 
-def examiner_image(octets: bytes) -> tuple[bytes, str]:
-    """Contrôle l'image reçue ; rend (JPEG réencodé sans métadonnées, type mime). Lève ImageRefusee avec un message clair sinon."""
+def examiner_image(octets: bytes, souple: bool = False) -> tuple[bytes, str]:
+    """Contrôle l'image reçue. `souple` (vérification manuelle demandée, appareil photo de mauvaise qualité) : la taille minimale est abaissée et le contrôle de couleur
+    n'est pas bloquant (l'administrateur jugera) ; le format, la lisibilité du fichier et le poids restent contrôlés. rend (JPEG réencodé sans métadonnées, type mime). Lève ImageRefusee avec un message clair sinon."""
     if not octets:
         raise ImageRefusee("Aucune photo reçue.")
     if len(octets) > TAILLE_MAX_OCTETS:
@@ -125,11 +127,11 @@ def examiner_image(octets: bytes) -> tuple[bytes, str]:
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError):
         raise ImageRefusee("Ce fichier n'est pas une photo lisible.") from None
     petit = min(rgb.size)
-    if petit < COTE_MIN_PX:
+    if petit < (COTE_MIN_SOUPLE_PX if souple else COTE_MIN_PX):
         raise ImageRefusee(f"Photo trop petite ({rgb.size[0]}×{rgb.size[1]}) : rapprochez-vous de la carte et recommencez.")
     # Couleur : saturation moyenne de l'image réduite (photo en noir et blanc, photocopie ou carte filmée à l'écran en gris : refusée)
     saturation = ImageStat.Stat(rgb.resize((160, 160)).convert("HSV")).mean[1] / 255.0
-    if saturation < SATURATION_MIN:
+    if saturation < SATURATION_MIN and not souple:
         raise ImageRefusee("La photo doit être EN COULEUR (pas de noir et blanc ni de photocopie). Photographiez la carte elle-même, en pleine lumière.")
     rgb.thumbnail((COTE_MAX_PX, COTE_MAX_PX))
     sortie = io.BytesIO()
@@ -183,10 +185,13 @@ def age_en_annees(naissance: date, aujourdhui: date) -> int:
     return aujourdhui.year - naissance.year - ((aujourdhui.month, aujourdhui.day) < (naissance.month, naissance.day))
 
 
-def decider(lecture: dict | None, nom_compte: str, aujourdhui: date, age_minimum: int = 18) -> dict:
+def decider(lecture: dict | None, nom_compte: str, aujourdhui: date, age_minimum: int = 18, revue_manuelle: bool = False) -> dict:
     """Décision à partir de la LECTURE de la carte. Rend {decision: verifiee|a_verifier|rejetee, raisons: [...], champs: {...}, expire_bientot: bool}.
-    « rejetee » seulement pour un défaut certain ; tout doute = « a_verifier » (revue humaine)."""
+    « rejetee » seulement pour un défaut certain ; tout doute = « a_verifier » (revue humaine).
+    `revue_manuelle` : la personne a demandé une vérification par un administrateur (appareil photo de mauvaise qualité) : un défaut de QUALITÉ (flou, noir et blanc)
+    devient alors une revue humaine ; les défauts de FOND (pas une CNIB, photocopie, expirée, mineur) restent des refus."""
     raisons_refus: list[str] = []
+    raisons_qualite: list[str] = []                 # défauts de qualité de la photo (pas de la carte)
     raisons_doute: list[str] = []
     if not lecture:
         return {"decision": "a_verifier", "raisons": ["Lecture automatique indisponible : la CNIB sera vérifiée par un administrateur."], "champs": {}, "expire_bientot": False}
@@ -203,9 +208,9 @@ def decider(lecture: dict | None, nom_compte: str, aujourdhui: date, age_minimum
     if lecture.get("capture_ecran_ou_photocopie") is True:
         raisons_refus.append("La photo semble être une capture d'écran ou une photocopie : photographiez la carte elle-même.")
     if lecture.get("couleur") is False:
-        raisons_refus.append("La photo doit être en couleur.")
+        raisons_qualite.append("La photo doit être en couleur.")
     if lecture.get("lisible") is False:
-        raisons_refus.append("La carte n'est pas lisible (flou, reflet, coupée) : refaites la photo en pleine lumière, carte à plat.")
+        raisons_qualite.append("La carte n'est pas lisible (flou, reflet, coupée) : refaites la photo en pleine lumière, carte à plat.")
     if expiration and expiration < aujourdhui:
         raisons_refus.append(f"La CNIB est expirée depuis le {expiration.strftime('%d/%m/%Y')}.")
     if naissance:
@@ -231,6 +236,13 @@ def decider(lecture: dict | None, nom_compte: str, aujourdhui: date, age_minimum
     if not commun:
         raisons_doute.append("Le nom du compte ne correspond pas à celui de la CNIB.")
 
+    if raisons_qualite and not raisons_refus:
+        if revue_manuelle:
+            raisons_doute = ["Vérification manuelle demandée (appareil photo de mauvaise qualité). " + " ".join(raisons_qualite)] + raisons_doute
+        else:
+            raisons_refus = raisons_qualite
+    elif raisons_qualite:
+        raisons_refus += raisons_qualite
     expire_bientot = bool(expiration and aujourdhui <= expiration <= aujourdhui + timedelta(days=EXPIRE_BIENTOT_JOURS))
     if raisons_refus:
         return {"decision": "rejetee", "raisons": raisons_refus, "champs": champs, "expire_bientot": False}

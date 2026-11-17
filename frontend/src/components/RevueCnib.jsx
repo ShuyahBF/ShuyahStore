@@ -72,7 +72,7 @@ export default function RevueCnib() {
               <td className="p-2"><b>{f.compte?.nom}</b><br /><span className="text-xs text-gray-500">{f.compte?.email}</span></td>
               <td className="p-2">{f.nom} {f.prenoms}<br /><span className="font-mono text-xs">{f.numero_masque}</span></td>
               <td className="p-2 tabular-nums">{f.date_expiration ? dateFr(f.date_expiration) : "—"}</td>
-              <td className="p-2 text-xs">{(f.raisons || []).join(" ")}</td>
+              <td className="p-2 text-xs">{f.revue_manuelle_demandee && <b className="mr-1 rounded bg-amber-100 px-1 text-amber-900">Vérification manuelle demandée</b>}{(f.raisons || []).join(" ")}</td>
               <td className="p-2 tabular-nums">{dateHeure(f.soumis_le)}</td>
               <td className="p-2"><button type="button" className="btn-primary" onClick={() => examiner(f)}><IdCard className="h-4 w-4" aria-hidden="true" />Examiner</button></td>
             </tr>))}</tbody>
@@ -91,6 +91,7 @@ export default function RevueCnib() {
             {image ? <img src={image} alt="CNIB soumise" className="max-h-72 w-full rounded-lg border border-gray-200 object-contain" /> : <Patientez />}
             <p>Lu : <b>{ouverte.nom} {ouverte.prenoms}</b> · né(e) le <span className="tabular-nums">{ouverte.date_naissance ? dateFr(ouverte.date_naissance) : "?"}</span> · expire le <span className="tabular-nums">{ouverte.date_expiration ? dateFr(ouverte.date_expiration) : "?"}</span> · n° <span className="font-mono">{ouverte.numero_masque}</span></p>
             {(ouverte.raisons || []).length > 0 && <ul className="list-disc pl-5 text-amber-800">{ouverte.raisons.map((r) => <li key={r}>{r}</li>)}</ul>}
+            {(ouverte.raisons || []).length > 0 && <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">« Approuver » force la validation malgré ces réserves (par exemple photo de mauvaise qualité) : comparez la photo à la personne et aux informations avant d'approuver. La décision est inscrite au journal.</p>}
             <label className="label" htmlFor="m-refus">Motif (obligatoire pour refuser)</label>
             <input id="m-refus" className="input" maxLength={300} value={motif} onChange={(e) => setMotif(e.target.value)} />
             <div className="flex flex-wrap gap-2">

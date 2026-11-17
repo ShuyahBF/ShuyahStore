@@ -19,6 +19,7 @@ export default function CarteCnib() {
   const toast = useToast();
   const [etat, setEtat] = useState(null);
   const [photo, setPhoto] = useState(null);
+  const [manuelle, setManuelle] = useState(false);
   const [occupe, setOccupe] = useState(false);
 
   const lire = useCallback(async () => { try { setEtat((await apiClient.get("/moi/cnib")).data); } catch { setEtat(null); } }, []);
@@ -29,9 +30,9 @@ export default function CarteCnib() {
     if (!photo) return;
     setOccupe(true); toast.info("Analyse de la CNIB en cours… Patientez…");
     try {
-      const f = new FormData(); f.append("cnib_photo", photo);
+      const f = new FormData(); f.append("cnib_photo", photo); f.append("revue_manuelle", manuelle ? "true" : "false");
       const { data } = await apiClient.post("/moi/cnib", f);
-      setPhoto(null); await Promise.all([lire(), actualiser()]);
+      setPhoto(null); setManuelle(false); await Promise.all([lire(), actualiser()]);
       if (data.statut === "verifiee") toast.succes("CNIB vérifiée."); else toast.info("CNIB reçue : un administrateur doit la vérifier. " + (data.raisons || []).join(" "));
     } catch (err) { toast.erreur(messageErreur(err, "Envoi de la CNIB impossible")); } finally { setOccupe(false); }
   };
@@ -50,7 +51,7 @@ export default function CarteCnib() {
       {(etat.raisons || []).length > 0 && etat.statut !== "verifiee" && <ul className="list-disc pl-5 text-sm text-gray-700">{etat.raisons.map((r) => <li key={r}>{r}</li>)}</ul>}
       {besoin && (
         <div className="space-y-2">
-          <ChampCnib id="m-cnib" fichier={photo} onChange={setPhoto} />
+          <ChampCnib id="m-cnib" fichier={photo} onChange={setPhoto} manuelle={manuelle} onManuelle={setManuelle} />
           <button type="button" className="btn-primary" disabled={!photo || occupe} onClick={envoyer}>{occupe ? "Patientez…" : "Envoyer la CNIB"}</button>
         </div>
       )}
