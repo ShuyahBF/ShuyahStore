@@ -39,6 +39,9 @@ async def ensure_indexes() -> None:
     """Index uniques et index de recherche (idempotent : relancé à chaque démarrage). Règle 7 : un index sur chaque filtre fréquent."""
     await db.users.create_index("id", unique=True)
     await db.users.create_index("email", unique=True)
+    await db.cnib.create_index("user_id", unique=True)                       # CNIB (lot 24) : une fiche par compte
+    await db.cnib.create_index("empreinte_numero")                          # unicité d'une CNIB entre comptes
+    await db.cnib_essais.create_index("ip")
     # Applications : un nom de paquet = une seule fiche ; listes par statut, par développeur, par catégorie
     await db.sauvegardes.create_index("id", unique=True)                    # sauvegardes en ligne chiffrées (lot 9)
     await db.applications.create_index("id", unique=True)

@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     admin_email: str = ""
     admin_password: str = ""
 
+    # --- CNIB à l'inscription (lot 24) : photo couleur de la carte nationale d'identité burkinabè, analysée avant d'ouvrir le compte ---
+    cnib_a_l_inscription: bool = True         # False : l'inscription redevient simple (sans photo de CNIB)
+    cnib_age_minimum: int = 18                # âge minimal lu sur la CNIB (en dessous : refus)
+    anthropic_api_key: str = ""               # SECRET saisi par le propriétaire dans Render ; sans clé, toute CNIB passe en revue humaine (jamais d'approbation automatique)
+    anthropic_model: str = "claude-sonnet-5-5"
+
     # --- Protection contre les essais de mots de passe ---
     max_echecs_connexion: int = 10
     fenetre_echecs_minutes: int = 15

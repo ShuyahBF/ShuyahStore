@@ -81,6 +81,9 @@ def utilisateur_public(user: dict) -> dict:
     fiche["whatsapp_requis"] = not user.get("whatsapp")             # comptes anciens : le numéro WhatsApp doit être ajouté (l'écran le demande)
     fiche["whatsapp_masque"] = (user["whatsapp"][:4] + " •••• " + user["whatsapp"][-2:]) if user.get("whatsapp") else None
     fiche["whatsapp_verifie"] = bool(user.get("whatsapp")) and user.get("whatsapp_verifie_pour") == user.get("whatsapp")
+    # CNIB (lot 24) : état de la vérification ; absent pour les comptes créés avant (aucune exigence rétroactive)
+    fiche["cnib_statut"] = user.get("cnib_statut")                  # verifiee | a_verifier | rejetee | None
+    fiche["cnib_expire_le"] = user.get("cnib_expire_le")
     fiche["a2f"] = bool(a2f.get("actif"))                         # double authentification activée ?
     fiche["codes_secours_restants"] = len(a2f.get("secours") or []) if a2f.get("actif") else None
     return fiche
