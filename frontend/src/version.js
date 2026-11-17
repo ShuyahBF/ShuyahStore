@@ -1,7 +1,7 @@
 // SOURCE UNIQUE de la version et du lot de ShuyahStore (règles 1 et 2 du propriétaire).
 // À CHAQUE déploiement : VERSION + 1 et LOT = numéro de la PR fusionnée. Le serveur relit ce fichier (backend/version_plateforme.py).
-export const VERSION = 21;
-export const LOT = 21;
+export const VERSION = 22;
+export const LOT = 23;
 
 // Date de compilation et commit court, injectés par vite.config.js au moment du build
 const DATE = typeof __DATE_BUILD__ !== "undefined" ? __DATE_BUILD__ : new Date().toISOString();

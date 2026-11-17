@@ -180,3 +180,69 @@ def test_rapport_pdf_telechargeable_et_envoye_par_whatsapp(client, compte, admin
     envoi = [m for m in liluvine[avant:] if m["to"] == "+22670001234"][-1]
     assert envoi["media"]["nom_fichier"].endswith(".pdf") and base64.b64decode(envoi["media"]["contenu_base64"]).startswith(b"%PDF")
     assert asyncio.run(statistiques.envoyer_rapports_de_la_semaine(date(2026, 11, 30))) == 0           # déjà envoyé cette semaine
+
+
+# ---------- connexion par numéro WhatsApp (sans e-mail ni mot de passe) ----------
+
+def compte_verifie(client, liluvine):
+    """Compte dont le numéro WhatsApp est vérifié ; renvoie (identifiants, en-têtes)."""
+    base = base_compte()
+    r = client.post("/api/auth/inscription", json=base)
+    h = en_tetes(r, client)
+    client.post("/api/auth/whatsapp/verifier", json={"code": code_recu(liluvine)}, headers=h)
+    return base, h
+
+
+def test_connexion_par_numero_whatsapp(client, liluvine):
+    base, _ = compte_verifie(client, liluvine)
+    avant = len(liluvine)
+    r = client.post("/api/auth/connexion-whatsapp/demande", json={"whatsapp": "+226 " + base["whatsapp"][4:]})      # saisie avec espace
+    assert r.status_code == 200 and r.json()["ok"] is True and len(liluvine) == avant + 1 and liluvine[-1]["to"] == base["whatsapp"]
+    code = code_recu(liluvine)
+    assert client.post("/api/auth/connexion-whatsapp", json={"whatsapp": base["whatsapp"], "code_wa": "000000"}).status_code == 401
+    ok = client.post("/api/auth/connexion-whatsapp", json={"whatsapp": base["whatsapp"], "code_wa": code})
+    assert ok.status_code == 200 and ok.json()["user"]["email"] == base["email"] and client.get("/api/auth/moi", headers=en_tetes(ok)).status_code == 200
+    # usage unique : le même code ne rouvre pas de session
+    client.cookies.clear()
+    assert client.post("/api/auth/connexion-whatsapp", json={"whatsapp": base["whatsapp"], "code_wa": code}).status_code == 401
+
+
+def test_connexion_par_numero_sans_enumeration(client, liluvine):
+    base, _ = compte_verifie(client, liluvine)
+    avant = len(liluvine)
+    connu = client.post("/api/auth/connexion-whatsapp/demande", json={"whatsapp": base["whatsapp"]})
+    inconnu = client.post("/api/auth/connexion-whatsapp/demande", json={"whatsapp": "+22679999999"})
+    assert connu.status_code == inconnu.status_code == 200 and connu.json() == inconnu.json()           # même réponse
+    assert len(liluvine) == avant + 1                                                                    # rien n'est envoyé à un numéro inconnu
+    assert client.post("/api/auth/connexion-whatsapp", json={"whatsapp": "+22679999999", "code_wa": "123456"}).status_code == 401
+    assert client.post("/api/auth/connexion-whatsapp/demande", json={"whatsapp": "abc"}).status_code == 422
+
+
+def test_numero_non_verifie_ne_peut_pas_se_connecter(client, liluvine):
+    base = base_compte()
+    client.post("/api/auth/inscription", json=base)                      # numéro enregistré mais JAMAIS vérifié
+    avant = len(liluvine)
+    assert client.post("/api/auth/connexion-whatsapp/demande", json={"whatsapp": base["whatsapp"]}).status_code == 200
+    assert len(liluvine) == avant                                        # aucun code n'est envoyé pour un numéro non vérifié
+    assert client.post("/api/auth/connexion-whatsapp", json={"whatsapp": base["whatsapp"], "code_wa": "123456"}).status_code == 401
+
+
+def test_connexion_par_numero_respecte_la_double_authentification(client, liluvine):
+    import test_a2f
+    base, h = compte_verifie(client, liluvine)
+    test_a2f.activer(client, h)
+    client.post("/api/auth/connexion-whatsapp/demande", json={"whatsapp": base["whatsapp"]})
+    code = code_recu(liluvine)
+    r = client.post("/api/auth/connexion-whatsapp", json={"whatsapp": base["whatsapp"], "code_wa": code})
+    assert r.status_code == 200 and r.json() == {"a2f_requise": True} and not client.cookies.get("ss_session")       # le code WhatsApp ne remplace pas la 2FA
+
+
+def test_connexion_par_numero_essais_limites_et_service_absent(client, liluvine, monkeypatch):
+    base, _ = compte_verifie(client, liluvine)
+    client.post("/api/auth/connexion-whatsapp/demande", json={"whatsapp": base["whatsapp"]})
+    bon = code_recu(liluvine)
+    for _ in range(6):
+        client.post("/api/auth/connexion-whatsapp", json={"whatsapp": base["whatsapp"], "code_wa": "000000"})
+    assert client.post("/api/auth/connexion-whatsapp", json={"whatsapp": base["whatsapp"], "code_wa": bon}).status_code in (401, 429)   # code annulé / adresse bloquée
+    monkeypatch.setattr(get_settings(), "liluvine_wa_hmac", "")
+    assert client.post("/api/auth/connexion-whatsapp/demande", json={"whatsapp": base["whatsapp"]}).status_code == 503
