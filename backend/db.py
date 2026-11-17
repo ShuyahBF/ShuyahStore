@@ -78,3 +78,15 @@ async def ensure_indexes() -> None:
     await db.signalements.create_index([("statut", 1), ("cree_le", -1)])
     await db.echecs_connexion.create_index([("cle", 1), ("date", 1)])
     await db.echecs_connexion.create_index("date", expireAfterSeconds=24 * 3600)
+
+
+async def remplir_dates_publication() -> int:
+    """Applications publiées avant l'ajout de `version_courante.publie_le` : la date est reprise de la fiche de leur version (idempotent). Rend le nombre d'applications corrigées."""
+    corrigees = 0
+    async for a in db.applications.find({"version_courante": {"$exists": True, "$ne": None}, "version_courante.publie_le": {"$exists": False}}, {"_id": 0, "id": 1, "version_courante": 1}):
+        v = await db.versions.find_one({"id": a["version_courante"].get("id")}, {"_id": 0, "publie_le": 1, "cree_le": 1})
+        quand = (v or {}).get("publie_le") or (v or {}).get("cree_le")
+        if quand:
+            await db.applications.update_one({"id": a["id"]}, {"$set": {"version_courante.publie_le": quand}})
+            corrigees += 1
+    return corrigees

@@ -7,7 +7,7 @@ import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient, lienApk, messageErreur } from "@/lib/api";
-import { dateFr, dateHeure, nombre, taille } from "@/lib/format";
+import { dateFr, dateHeure, ilYa, nombre, taille } from "@/lib/format";
 import { useTri } from "@/lib/tri";
 
 const COL_ANALYSES = { nom: { type: "texte" }, developpeur: { type: "texte" }, jours_depuis_maj: { type: "nombre" }, intervalle_moyen_jours: { type: "nombre" }, delai_validation_heures: { type: "nombre" },
@@ -47,7 +47,7 @@ export default function Admin() {
     try {
       // Les trois lectures partent EN MÊME TEMPS ; une section lente ne bloque pas les autres
       const [tableau, liste, lents, reglages, ana] = await Promise.all([apiClient.get("/admin/tableau"), apiClient.get("/admin/apps"), apiClient.get("/admin/appels-lents"), apiClient.get("/admin/parametres"), apiClient.get("/admin/analyses")]);
-      setAnalyses(ana.data.apps); setT(tableau.data); setApps(liste.data.apps); setRoutes(lents.data.routes); setParams(reglages.data); setNbVersions(String(reglages.data.versions_conservees));
+      setAnalyses(ana.data.apps); setT(tableau.data); setApps(liste.data.apps.map((x) => ({ ...x, version_nom: x.version_courante?.version_nom || "", publie_le: x.version_courante?.publie_le || "" }))); setRoutes(lents.data.routes); setParams(reglages.data); setNbVersions(String(reglages.data.versions_conservees));
       if (annonce) toast.succes(`Relu : ${tableau.data.en_attente.length} version(s) à valider, ${tableau.data.signalements.length} signalement(s), ${liste.data.apps.length} application(s)`);
     } catch (err) { toast.erreur(messageErreur(err, "Administration indisponible")); }
   }, [toast]);
@@ -226,12 +226,15 @@ export default function Admin() {
           <div className="card overflow-x-auto p-0 sm:p-0">
             <table className="table">
               <thead><tr><ThTri cle="nom" {...triApps}>Application</ThTri><ThTri cle="nom_developpeur" {...triApps}>Développeur</ThTri><ThTri cle="statut" {...triApps}>État</ThTri>
+                <ThTri cle="version_nom" {...triApps}>Version en cours</ThTri><ThTri cle="publie_le" {...triApps}>Dernière publication</ThTri>
                 <ThTri cle="telechargements" {...triApps} droite>Téléch.</ThTri><ThTri cle="maj_le" {...triApps}>Mise à jour</ThTri><th>Action</th></tr></thead>
               <tbody>{triApps.triees.map((a) => (
                 <tr key={a.id}>
                   <td><div className="flex items-center gap-2"><IconeApp app={a} taille="h-9 w-9" /><div className="min-w-0"><b className="block truncate">{a.nom}</b><span className="block truncate font-mono text-xs text-primary">{a.paquet}</span></div></div></td>
                   <td>{a.nom_developpeur}</td>
                   <td className="space-x-1"><Statut code={a.statut} />{a.recommandee && <Recommandee />}</td>
+                  <td className="font-semibold tabular-nums text-ink">{a.version_nom || "—"}</td>
+                  <td className="tabular-nums" title={a.publie_le ? dateFr(a.publie_le) : ""}>{a.publie_le ? ilYa(a.publie_le) : "—"}</td>
                   <td className="text-right tabular-nums text-primary">{nombre(a.telechargements)}</td>
                   <td className="tabular-nums">{dateFr(a.maj_le)}</td>
                   <td><button type="button" className="btn-bleu btn-sm" onClick={() => ouvrirReglage(a)}><BadgeCheck className="h-4 w-4" aria-hidden="true" />Régler</button></td>
