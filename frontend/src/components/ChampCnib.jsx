@@ -4,7 +4,7 @@ import { Camera, ImagePlus, Trash2 } from "lucide-react";
 // Champ « photo de la CNIB » (lot 24) : prise de vue directe (téléphone) ou choix d'un fichier, avec aperçu et consignes.
 // La photo reste dans le navigateur jusqu'à l'envoi du formulaire ; le serveur l'examine, l'analyse puis la range CHIFFRÉE.
 // `onChange(file | null)` : le parent garde le fichier. `tailleMaxMo` vient du serveur (/auth/inscription/exigences).
-export default function ChampCnib({ fichier, onChange, tailleMaxMo = 8, id = "c-cnib" }) {
+export default function ChampCnib({ fichier, onChange, tailleMaxMo = 8, id = "c-cnib", manuelle = false, onManuelle }) {
   const entree = useRef(null);
   const [apercu, setApercu] = useState(null);
   const [erreur, setErreur] = useState("");
@@ -42,6 +42,12 @@ export default function ChampCnib({ fichier, onChange, tailleMaxMo = 8, id = "c-
           {fichier ? <ImagePlus className="h-4 w-4" aria-hidden="true" /> : <Camera className="h-4 w-4" aria-hidden="true" />}{fichier ? "Changer la photo" : "Photographier ou choisir la CNIB"}</button>
         {fichier && <button type="button" className="btn-outline text-red-700" onClick={() => onChange(null)}><Trash2 className="h-4 w-4" aria-hidden="true" />Retirer</button>}
       </div>
+      {onManuelle && (
+        <label className="flex items-start gap-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-900" htmlFor={`${id}-manuelle`}>
+          <input id={`${id}-manuelle`} type="checkbox" className="mt-1 h-4 w-4" checked={manuelle} onChange={(e) => onManuelle(e.target.checked)} />
+          <span><b>Demander une vérification manuelle</b> : mon appareil photo est de mauvaise qualité (photo floue ou petite). Un administrateur examinera la photo ; la validation peut prendre plus de temps.</span>
+        </label>
+      )}
       {erreur && <p role="alert" className="text-sm font-semibold text-red-700">{erreur}</p>}
       <p className="text-xs text-gray-600">Votre CNIB est lue et vérifiée. Si la lecture est certaine, la photo n'est PAS conservée ; sinon elle est gardée chiffrée le temps du contrôle par un administrateur, puis supprimée. Elle n'est jamais publique.</p>
     </div>

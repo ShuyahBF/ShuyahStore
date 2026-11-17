@@ -25,6 +25,7 @@ from securite import get_current_user, require_admin, utilisateur_public
 
 router = APIRouter(tags=["CNIB"])
 ANALYSES_PAR_HEURE = 6
+_CONSEIL = "Si votre appareil photo est de mauvaise qualité, cochez « Demander une vérification manuelle » : un administrateur examinera la photo."
 
 
 @router.get("/auth/inscription/exigences")
@@ -42,17 +43,17 @@ async def _limiter(ip: str) -> None:
     await db.cnib_essais.insert_one({"ip": ip, "le": iso()})
 
 
-async def analyser(octets: bytes, nom_compte: str, ip: str, user_id: str | None = None) -> tuple[bytes, dict]:
+async def analyser(octets: bytes, nom_compte: str, ip: str, user_id: str | None = None, revue_manuelle: bool = False) -> tuple[bytes, dict]:
     """Chaîne complète : examen de l'image, lecture IA, décision, unicité. Rend (JPEG, résultat) ; lève 422 (refus net) ou 409 (CNIB déjà utilisée)."""
     await _limiter(ip or "inconnue")
     try:
-        jpeg, _ = cnib.examiner_image(octets)
+        jpeg, _ = cnib.examiner_image(octets, souple=revue_manuelle)
     except cnib.ImageRefusee as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"{exc} {_CONSEIL}") from None
     s = get_settings()
-    resultat = cnib.decider(await cnib.lire_par_ia(jpeg), nom_compte, date.today(), s.cnib_age_minimum)
+    resultat = cnib.decider(await cnib.lire_par_ia(jpeg), nom_compte, date.today(), s.cnib_age_minimum, revue_manuelle)
     if resultat["decision"] == "rejetee":
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, " ".join(resultat["raisons"]))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, " ".join(resultat["raisons"]) + f" {_CONSEIL}")
     numero = resultat["champs"].get("numero")
     if numero:
         autre = await db.cnib.find_one({"empreinte_numero": {"$in": cnib.empreintes_numero(numero)}, "statut": {"$in": ["verifiee", "a_verifier"]},
@@ -62,7 +63,7 @@ async def analyser(octets: bytes, nom_compte: str, ip: str, user_id: str | None 
     return jpeg, resultat
 
 
-async def ranger(user_id: str, jpeg: bytes, resultat: dict) -> dict:
+async def ranger(user_id: str, jpeg: bytes, resultat: dict, revue_manuelle: bool = False) -> dict:
     """Range la photo CHIFFRÉE (remplace l'ancienne) et la fiche de contrôle ; met à jour l'état du compte."""
     ancien = await db.cnib.find_one({"user_id": user_id}, SANS_ID)
     if ancien and ancien.get("fichier_id"):
@@ -77,7 +78,7 @@ async def ranger(user_id: str, jpeg: bytes, resultat: dict) -> dict:
     fiche = {"id": str(uuid.uuid4()), "user_id": user_id, "fichier_id": fichier_id, "statut": resultat["decision"], "raisons": resultat["raisons"],
              "nom": c.get("nom"), "prenoms": c.get("prenoms"), "date_naissance": c.get("date_naissance"), "date_expiration": c.get("date_expiration"),
              "numero_masque": cnib.masquer_numero(c.get("numero") or ""), "empreinte_numero": cnib.empreinte_numero(c["numero"]) if c.get("numero") else None,
-             "expire_bientot": resultat.get("expire_bientot", False), "soumis_le": iso(), "lecture_ia": bool(get_settings().anthropic_api_key)}
+             "expire_bientot": resultat.get("expire_bientot", False), "soumis_le": iso(), "lecture_ia": bool(get_settings().anthropic_api_key), "revue_manuelle_demandee": bool(revue_manuelle)}
     await db.cnib.replace_one({"user_id": user_id}, fiche, upsert=True)
     await db.users.update_one({"id": user_id}, {"$set": {"cnib_statut": resultat["decision"], "cnib_expire_le": c.get("date_expiration"), "cnib_soumise_le": fiche["soumis_le"]}})
     return fiche
@@ -85,7 +86,7 @@ async def ranger(user_id: str, jpeg: bytes, resultat: dict) -> dict:
 
 @router.post("/auth/inscription-cnib", status_code=status.HTTP_201_CREATED, dependencies=[Depends(limiter_appels_publics)])
 async def inscription_cnib(request: Request, response: Response, nom: str = Form(...), email: str = Form(...), mot_de_passe: str = Form(...),
-                           whatsapp: str = Form(...), cnib_photo: UploadFile = File(...)):
+                           whatsapp: str = Form(...), cnib_photo: UploadFile = File(...), revue_manuelle: bool = Form(False)):
     """Inscription avec la photo couleur de la CNIB. Les champs du formulaire sont contrôlés AVANT l'analyse (coût) ; un refus ne crée rien."""
     data = Inscription(nom=nom, email=email, mot_de_passe=mot_de_passe, whatsapp=whatsapp)            # mêmes longueurs que l'inscription simple (422 sinon)
     octets = await cnib_photo.read(cnib.TAILLE_MAX_OCTETS + 1)
@@ -95,20 +96,20 @@ async def inscription_cnib(request: Request, response: Response, nom: str = Form
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Adresse e-mail invalide")
     if await db.users.find_one({"email": normaliser_email(data.email)}, {"_id": 1}):
         raise HTTPException(status.HTTP_409_CONFLICT, "Un compte existe déjà avec cette adresse e-mail")
-    jpeg, resultat = await analyser(octets, data.nom, adresse_ip(request))
+    jpeg, resultat = await analyser(octets, data.nom, adresse_ip(request), None, revue_manuelle)
     # La fiche du compte porte déjà l'état (le compte est créé en une fois) ; la photo est rangée juste après
     extra = {"cnib_statut": resultat["decision"], "cnib_expire_le": resultat["champs"].get("date_expiration")}
     cree = await creer_compte(data, response, extra)
-    fiche = await ranger(cree["user"]["id"], jpeg, resultat)
+    fiche = await ranger(cree["user"]["id"], jpeg, resultat, revue_manuelle)
     return {**cree, "cnib": {"statut": fiche["statut"], "raisons": fiche["raisons"], "expire_le": fiche["date_expiration"], "expire_bientot": fiche["expire_bientot"]}}
 
 
 @router.post("/moi/cnib", dependencies=[Depends(limiter_appels_publics)])
-async def renvoyer_cnib(request: Request, cnib_photo: UploadFile = File(...), user: dict = Depends(get_current_user)):
+async def renvoyer_cnib(request: Request, cnib_photo: UploadFile = File(...), revue_manuelle: bool = Form(False), user: dict = Depends(get_current_user)):
     """Nouvelle photo de CNIB (CNIB expirée, refusée, à vérifier, ou compte créé avant l'exigence)."""
     octets = await cnib_photo.read(cnib.TAILLE_MAX_OCTETS + 1)
-    jpeg, resultat = await analyser(octets, user["nom"], adresse_ip(request), user["id"])
-    fiche = await ranger(user["id"], jpeg, resultat)
+    jpeg, resultat = await analyser(octets, user["nom"], adresse_ip(request), user["id"], revue_manuelle)
+    fiche = await ranger(user["id"], jpeg, resultat, revue_manuelle)
     return {"statut": fiche["statut"], "raisons": fiche["raisons"], "expire_le": fiche["date_expiration"], "expire_bientot": fiche["expire_bientot"]}
 
 
@@ -215,7 +216,7 @@ async def decider(cnib_id: str, d: Decision, request: Request, admin: dict = Dep
     # Dans les deux cas la photo est SUPPRIMÉE (approuvée : il ne reste que les champs lus ; refusée : la fiche et le motif)
     await stockage.supprimer(f.get("fichier_id"))
     maj["fichier_id"] = None
-    await journaliser(cnib_id, admin, "approuvee" if d.approuver else "refusee", request, d.motif)
+    await journaliser(cnib_id, admin, ("approuvee_forcee" if f.get("raisons") else "approuvee") if d.approuver else "refusee", request, d.motif)
     await db.cnib.update_one({"id": cnib_id}, {"$set": maj})
     await db.users.update_one({"id": f["user_id"]}, {"$set": {"cnib_statut": statut}})
     return {"ok": True, "statut": statut}
