@@ -85,3 +85,11 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
   Une même CNIB (empreinte HMAC du numéro) n'ouvre pas deux comptes ; photo CHIFFRÉE (Fernet) en base, lisible par l'administrateur seul, à la demande, sans cache ; seul le numéro masqué est gardé.
   Les comptes créés avant le lot 24 ne sont pas touchés ; un compte avec CNIB non vérifiée ou expirée ne dépose pas d'APK. 6 analyses par heure et par adresse IP. Tests : `tests/test_cnib.py`.
   Confidentialité : la photo est envoyée au service d'IA d'Anthropic pour lecture (à dire dans la politique de confidentialité).
+
+- RÈGLE DE SÉCURITÉ DES IDENTITÉS (propriétaire, 17/11/2026 : « le pays veut accroître la lutte contre le grand banditisme et les actes violents : tout ce qui peut être une occasion de voler des identités doit être bien sécurisé. C'est une nouvelle règle ») — pour TOUTE plateforme qui touche une pièce d'identité (CNIB, passeport, photo de visage, numéro) :
+  1. MINIMISER : ne garder la photo que si une revue humaine est nécessaire ; la supprimer dès la décision (ou après un délai fixé, ici 30 jours) ; ne garder que les champs lus, numéro MASQUÉ + empreinte HMAC.
+  2. CHIFFRER avec une clé DÉDIÉE (`CNIB_CLE`, distincte de JWT_SECRET, secret saisi dans Render) ; l'ancienne clé reste lisible en lecture pour la rotation.
+  3. RESTREINDRE : administrateur seul, avec double authentification OBLIGATOIRE, à la demande, jamais en cache (`no-store`).
+  4. JOURNALISER chaque consultation et décision (qui, quoi, quand, IP) — jamais le contenu ni le numéro — et rendre le journal consultable.
+  5. LIMITER les abus (essais par IP) et ne jamais approuver automatiquement sans lecture fiable ; une même pièce n'ouvre pas deux comptes.
+  6. Dire l'envoi à un service d'IA dans la politique de confidentialité. Tests : `tests/test_cnib.py`.

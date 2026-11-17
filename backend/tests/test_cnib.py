@@ -99,6 +99,14 @@ def cnib_active(monkeypatch):
     return etat
 
 
+@pytest.fixture(autouse=True)
+def _essais_vides(client):
+    """Le compteur d'essais par IP est partagé par la série : on le vide avant chaque test (sauf celui qui le vérifie, qui le remplit lui-même)."""
+    from db import db
+    client.portal.call(db.cnib_essais.delete_many, {})
+    yield
+
+
 _n = {"i": 0}
 
 
@@ -171,3 +179,56 @@ def test_limite_essais_par_ip(client, cnib_active):
     cnib_active["lecture"] = lecture(date_expiration="2020-01-01")
     codes = [inscrire(client).status_code for _ in range(8)]
     assert 429 in codes
+
+
+# ------------------------------------------------------------------ sécurité renforcée (lot 25)
+def test_cnib_verifiee_ne_garde_aucune_photo(client, cnib_active):
+    from db import db
+    cnib_active["lecture"] = lecture(numero="B31415926")
+    r = inscrire(client)
+    assert r.json()["cnib"]["statut"] == "verifiee"
+    fiche = client.portal.call(db.cnib.find_one, {"user_id": r.json()["user"]["id"]})
+    assert fiche["fichier_id"] is None
+
+
+def test_photo_supprimee_apres_decision_et_journal(client, cnib_active, admin):
+    cnib_active["lecture"] = lecture(numero="B27182818", indices_falsification=True)
+    r = inscrire(client)
+    fiche = next(f for f in client.get("/api/admin/cnib", headers=admin).json()["cnib"] if f["user_id"] == r.json()["user"]["id"])
+    assert client.get(f"/api/admin/cnib/{fiche['id']}/image", headers=admin).status_code == 200
+    assert client.post(f"/api/admin/cnib/{fiche['id']}/decision", headers=admin, json={"approuver": True}).status_code == 200
+    # après approbation : plus de photo
+    assert client.get(f"/api/admin/cnib/{fiche['id']}/image", headers=admin).status_code == 404
+    actions = [a["action"] for a in client.get("/api/admin/cnib/journal", headers=admin).json()["acces"]]
+    assert {"liste", "photo_vue", "approuvee"} <= set(actions)
+    assert all("B27182818" not in str(a) for a in client.get("/api/admin/cnib/journal", headers=admin).json()["acces"])
+
+
+def test_admin_sans_a2f_refuse(client, cnib_active, admin, monkeypatch):
+    monkeypatch.setattr(get_settings(), "cnib_admin_a2f_obligatoire", True)
+    r = client.get("/api/admin/cnib", headers=admin)
+    assert r.status_code == 403 and "double authentification" in r.text
+    assert client.get("/api/admin/cnib/securite", headers=admin).json()["a2f_admin_active"] is False
+
+
+def test_purge_des_revues_anciennes(client, cnib_active, admin, monkeypatch):
+    import asyncio
+    cnib_active["lecture"] = lecture(numero="B16180339", quatre_coins_visibles=False)
+    r = inscrire(client)
+    monkeypatch.setattr(get_settings(), "cnib_revue_jours_max", -1)       # tout est « trop ancien »
+    from routes.cnib import purger_revues_anciennes
+    assert client.portal.call(purger_revues_anciennes) >= 1
+    assert client.get("/api/moi/cnib", headers={"Authorization": f"Bearer {r.json()['access_token']}"}).json()["statut"] == "rejetee"
+
+
+def test_cle_dediee_et_rotation(monkeypatch):
+    """Avec CNIB_CLE : nouveaux chiffrements sous la clé dédiée ; les anciens (JWT_SECRET) restent lisibles ; sans la bonne clé : illisible."""
+    ancien = cnib.chiffrer(b"photo-ancienne")                      # clé de repli (JWT_SECRET)
+    s = get_settings()
+    monkeypatch.setattr(s, "cnib_cle", "cle-dediee-assez-longue-123456")
+    nouveau = cnib.chiffrer(b"photo-neuve")
+    assert cnib.dechiffrer(ancien) == b"photo-ancienne" and cnib.dechiffrer(nouveau) == b"photo-neuve"
+    monkeypatch.setattr(s, "cnib_cle", "")
+    assert cnib.dechiffrer(nouveau) is None                        # sans la clé dédiée, illisible même avec JWT_SECRET
+    assert cnib.empreintes_numero("B1")[0] != cnib.empreintes_numero("B2")[0]
+    assert len(cnib.empreintes_numero("B1")) == 1

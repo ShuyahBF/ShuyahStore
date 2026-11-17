@@ -78,3 +78,5 @@ async def au_demarrage():
     _taches_fond.add(asyncio.get_running_loop().create_task(presence_sawali.boucle_presence()))
     # Rapport hebdomadaire des statistiques aux développeurs (le lundi, une seule fois par semaine et par développeur), en tâche de fond
     _taches_fond.add(asyncio.get_running_loop().create_task(statistiques.boucle_rapports()))
+    # Purge horaire des CNIB « à vérifier » non traitées (la photo ne reste jamais indéfiniment)
+    _taches_fond.add(asyncio.get_running_loop().create_task(routes_cnib.boucle_purge()))

@@ -42,6 +42,7 @@ async def ensure_indexes() -> None:
     await db.cnib.create_index("user_id", unique=True)                       # CNIB (lot 24) : une fiche par compte
     await db.cnib.create_index("empreinte_numero")                          # unicité d'une CNIB entre comptes
     await db.cnib_essais.create_index("ip")
+    await db.cnib_acces.create_index("le")                                  # journal des accès aux CNIB
     # Applications : un nom de paquet = une seule fiche ; listes par statut, par développeur, par catégorie
     await db.sauvegardes.create_index("id", unique=True)                    # sauvegardes en ligne chiffrées (lot 9)
     await db.applications.create_index("id", unique=True)

@@ -43,7 +43,7 @@ export default function ChampCnib({ fichier, onChange, tailleMaxMo = 8, id = "c-
         {fichier && <button type="button" className="btn-outline text-red-700" onClick={() => onChange(null)}><Trash2 className="h-4 w-4" aria-hidden="true" />Retirer</button>}
       </div>
       {erreur && <p role="alert" className="text-sm font-semibold text-red-700">{erreur}</p>}
-      <p className="text-xs text-gray-600">Votre CNIB est lue et vérifiée, puis rangée chiffrée : seul un administrateur peut la consulter, pour contrôle. Elle n'est jamais publique.</p>
+      <p className="text-xs text-gray-600">Votre CNIB est lue et vérifiée. Si la lecture est certaine, la photo n'est PAS conservée ; sinon elle est gardée chiffrée le temps du contrôle par un administrateur, puis supprimée. Elle n'est jamais publique.</p>
     </div>
   );
 }

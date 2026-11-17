@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, IdCard, RefreshCw, XCircle } from "lucide-react";
+import { BadgeCheck, History, IdCard, RefreshCw, ShieldAlert, ShieldCheck, XCircle } from "lucide-react";
 import Modal from "@/components/Modal";
 import { Patientez } from "@/components/Communs";
 import { useToast } from "@/components/Toast";
@@ -16,13 +16,22 @@ export default function RevueCnib() {
   const [image, setImage] = useState(null);           // adresse temporaire de la photo
   const [motif, setMotif] = useState("");
   const [occupe, setOccupe] = useState(false);
+  const [secu, setSecu] = useState(null);             // état des protections (clé dédiée, double authentification de l'administrateur)
+  const [journal, setJournal] = useState(null);       // journal des accès (fenêtre) ; null = fermé
+
+  const lireSecurite = useCallback(async () => { try { setSecu((await apiClient.get("/admin/cnib/securite")).data); } catch { setSecu(null); } }, []);
+  const ouvrirJournal = async () => {
+    toast.info("Lecture du journal des accès en cours…");
+    try { const { data } = await apiClient.get("/admin/cnib/journal"); setJournal(data.acces); toast.succes(`${data.acces.length} accès`); }
+    catch (err) { toast.erreur(messageErreur(err, "Journal illisible")); }
+  };
 
   const lire = useCallback(async () => {
     toast.info("Actualisation des CNIB en cours…");
     try { const { data } = await apiClient.get("/admin/cnib"); setListe(data.cnib); toast.succes(`${data.cnib.length} CNIB à vérifier`); }
     catch (err) { toast.erreur(messageErreur(err, "Lecture des CNIB impossible")); }
   }, [toast]);
-  useEffect(() => { lire(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { lire(); lireSecurite(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const examiner = async (f) => {
     setOuverte(f); setMotif(""); setImage(null);
@@ -41,8 +50,20 @@ export default function RevueCnib() {
     <section className="space-y-2" data-testid="revue-cnib">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-lg font-bold"><IdCard className="h-5 w-5 text-primary" aria-hidden="true" />Vérification des CNIB</h2>
-        <button type="button" className="btn-outline" onClick={lire}><RefreshCw className="h-4 w-4" aria-hidden="true" />Actualiser</button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-outline" onClick={ouvrirJournal}><History className="h-4 w-4" aria-hidden="true" />Journal des accès</button>
+          <button type="button" className="btn-outline" onClick={() => { lire(); lireSecurite(); }}><RefreshCw className="h-4 w-4" aria-hidden="true" />Actualiser</button>
+        </div>
       </div>
+      {secu && (
+        <ul className="card space-y-1 text-sm" data-testid="securite-cnib">
+          {[[secu.cle_dediee, "Clé de chiffrement dédiée (CNIB_CLE) active", "CNIB_CLE absente : les CNIB sont chiffrées avec JWT_SECRET. Saisissez CNIB_CLE dans Render."],
+            [!secu.a2f_admin_obligatoire || secu.a2f_admin_active, "Double authentification de votre compte active", "Activez la double authentification de votre compte (Mon Compte) : sans elle, les CNIB ne s'ouvrent pas."]].map(([ok, bon, mauvais]) => (
+            <li key={bon} className={`flex items-start gap-2 font-semibold ${ok ? "text-emerald-700" : "text-red-700"}`}>
+              {ok ? <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}{ok ? bon : mauvais}</li>))}
+          <li className="text-xs font-normal text-gray-600">La photo est supprimée dès la décision, ou après {secu.revue_jours_max} jours sans décision. Une CNIB vérifiée automatiquement n'est jamais conservée en photo.</li>
+        </ul>
+      )}
       {!liste ? <Patientez /> : liste.length === 0 ? <p className="card text-sm text-gray-600">Aucune CNIB en attente.</p> : (
         <div className="card overflow-x-auto p-0"><table className="w-full text-sm">
           <thead className="bg-gray-50 text-left"><tr><th className="p-2">Compte</th><th className="p-2">Lu sur la carte</th><th className="p-2">Expire le</th><th className="p-2">Raisons</th><th className="p-2">Reçue le</th><th className="p-2"><span className="sr-only">Action</span></th></tr></thead>
@@ -57,6 +78,12 @@ export default function RevueCnib() {
             </tr>))}</tbody>
         </table></div>
       )}
+      <Modal ouvert={!!journal} titre="Journal des accès aux CNIB" onFermer={() => setJournal(null)} large>
+        {journal && (journal.length === 0 ? <p className="text-sm text-gray-600">Aucun accès enregistré.</p> : (
+          <table className="w-full text-xs"><thead className="text-left"><tr><th className="p-1">Quand</th><th className="p-1">Qui</th><th className="p-1">Action</th><th className="p-1">IP</th></tr></thead>
+            <tbody>{journal.map((a) => <tr key={a.id} className="border-t border-gray-100"><td className="p-1 tabular-nums">{dateHeure(a.le)}</td><td className="p-1">{a.admin}</td><td className="p-1">{a.action}{a.detail ? ` — ${a.detail}` : ""}</td><td className="p-1 font-mono">{a.ip}</td></tr>)}</tbody></table>))}
+        <button type="button" className="btn-outline mt-3" onClick={() => setJournal(null)}>Fermer</button>
+      </Modal>
       <Modal ouvert={!!ouverte} titre="Examiner la CNIB" onFermer={occupe ? undefined : fermer} large>
         {ouverte && (
           <div className="space-y-3 text-sm">
