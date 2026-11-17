@@ -93,3 +93,5 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
   4. JOURNALISER chaque consultation et décision (qui, quoi, quand, IP) — jamais le contenu ni le numéro — et rendre le journal consultable.
   5. LIMITER les abus (essais par IP) et ne jamais approuver automatiquement sans lecture fiable ; une même pièce n'ouvre pas deux comptes.
   6. Dire l'envoi à un service d'IA dans la politique de confidentialité. Tests : `tests/test_cnib.py`.
+
+- Enregistrement d'écran de débogage (application Android 1.3, 17/11/2026) : petite icône discrète (rond translucide en bas à gauche, visible aussi sur la page de connexion) qui filme tout l'écran (3 min au plus, sans son, accord d'Android à chaque fois, notification pendant l'enregistrement). La vidéo reste sur le téléphone, partagée par l'utilisateur lui-même, effacée après 7 jours. Code : `android/.../EnregistreurEcran.kt` (+ `EnregistreurEcranLogique.kt` testé). Retrait à la compilation : `-PsansEnregistrement=true`.
