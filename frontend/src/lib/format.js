@@ -12,6 +12,23 @@ export function taille(octets) {
 export const dateFr = (iso) => (iso ? new Date(iso).toLocaleDateString("fr-FR") : "");
 export const dateHeure = (iso) => (iso ? new Date(iso).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "");
 
+/**
+ * Durée écoulée depuis une date, en français : « aujourd'hui », « hier », « il y a 5 jours », « il y a 3 semaines », « il y a 3 mois », « il y a 1 an ».
+ * `maintenant` (millisecondes) est paramétrable pour les tests.
+ */
+export function ilYa(iso, maintenant = Date.now()) {
+  const t = iso ? new Date(iso).getTime() : NaN;
+  if (Number.isNaN(t)) return "";
+  const jours = Math.floor((maintenant - t) / 86400000);
+  if (jours < 1) return "aujourd'hui";
+  if (jours < 2) return "hier";
+  if (jours < 14) return `il y a ${jours} jours`;
+  if (jours < 56) return `il y a ${Math.floor(jours / 7)} semaines`;
+  if (jours < 365) return `il y a ${Math.floor(jours / 30.4)} mois`;
+  const ans = Math.floor(jours / 365);
+  return `il y a ${ans} an${ans > 1 ? "s" : ""}`;
+}
+
 /** Nombre lisible : 12500 → « 12 500 ». */
 export const nombre = (n) => Number(n || 0).toLocaleString("fr-FR");
 

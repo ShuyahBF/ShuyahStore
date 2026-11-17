@@ -101,6 +101,7 @@ async def publier_version(v: dict, a: dict) -> None:
     moment = iso()
     await db.versions.update_one({"id": v["id"]}, {"$set": {"statut": "publiee", "publie_le": moment, "traite_le": moment}})
     courante = {k: v.get(k) for k in ("id", "version_code", "version_nom", "taille", "sha256", "sdk_min")}
+    courante["publie_le"] = moment                       # date de publication de la version courante (écrans : « il y a 3 mois »)
     await db.applications.update_one({"id": a["id"]}, {"$set": {"statut": "publiee" if a["statut"] != "suspendue" else "suspendue",
                                                                "version_courante": courante, "maj_le": moment}})
     # Les fichiers des versions publiées les plus anciennes sont libérés (la fiche de la version reste, marquée « archivée »)
@@ -198,6 +199,7 @@ async def retirer_version_publiee(version_id: str, data: Retrait):
     if (a.get("version_courante") or {}).get("id") == version_id and restantes:
         n = restantes[0]
         courante = {k: n.get(k) for k in ("id", "version_code", "version_nom", "taille", "sha256", "sdk_min")}
+        courante["publie_le"] = n.get("publie_le") or n.get("cree_le")
         await db.applications.update_one({"id": a["id"]}, {"$set": {"version_courante": courante, "maj_le": moment}})
     return {"ok": True, "statut": "retiree"}
 

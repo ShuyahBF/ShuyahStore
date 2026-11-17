@@ -384,3 +384,21 @@ def test_simulation_des_statistiques_en_un_clic(client, compte, admin):
     assert r.status_code == 200 and r.json()["envoye"] is False and "SIMULATION" in r.json()["html"] and app["nom"] in r.json()["html"]
     assert client.post("/api/admin/apps/inconnue/simuler-statistiques", headers=admin).status_code == 404
     assert client.post(f"/api/admin/apps/{app['id']}/simuler-statistiques", headers=h).status_code in (401, 403)
+
+
+def test_version_courante_porte_sa_date_de_publication_et_les_anciennes_apps_sont_completees(client):
+    """Catalogue et administration affichent « version en cours · il y a 3 mois » : la date de publication est dans version_courante (reprise pour les apps déjà publiées)."""
+    import asyncio
+    from db import db, remplir_dates_publication
+    apps = client.get("/api/apps").json()["apps"]
+    assert apps, "Les tests précédents du fichier doivent avoir publié au moins une application"
+    a = apps[0]
+    assert a["version_courante"].get("publie_le")
+    # Application « ancienne » : on retire la date, puis la reprise la remet depuis la fiche de la version
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(db.applications.update_one({"id": a["id"]}, {"$unset": {"version_courante.publie_le": ""}}))
+        assert loop.run_until_complete(remplir_dates_publication()) >= 1
+    finally:
+        loop.close()
+    assert client.get("/api/apps").json()["apps"][0]["version_courante"].get("publie_le")

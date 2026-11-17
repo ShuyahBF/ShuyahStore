@@ -8,7 +8,7 @@ import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient, lienApk, messageErreur } from "@/lib/api";
-import { dateFr, nombre, taille } from "@/lib/format";
+import { dateFr, ilYa, nombre, taille } from "@/lib/format";
 import { dansApplication, etatPaquets } from "@/lib/pontAndroid";
 
 // FICHE d'une application : ce qu'il faut savoir AVANT de télécharger (taille, Android minimum, signature, autorisations en clair),
@@ -86,7 +86,7 @@ export default function FicheApp() {
               ? <BoutonInstaller app={app} version={courante} certificats={app.certificats_sha256} installee={installee} surChangement={() => { relireInstallation(app.paquet); charger(); }} />
               : <a href={lienApk(courante.id)} className="btn-primary px-6 py-3 text-base" data-testid="telecharger" onClick={() => toast.info("Téléchargement lancé…")}>
               <Download className="h-5 w-5" aria-hidden="true" />Télécharger ({taille(courante.taille)})</a>}
-            <span className="text-xs text-gray-600">Version {courante.version_nom || courante.version_code} · {dateFr(courante.publie_le || courante.cree_le)}</span>
+            <span className="text-xs text-gray-600">Version {courante.version_nom || courante.version_code} · {dateFr(courante.publie_le || courante.cree_le)} ({ilYa(courante.publie_le || courante.cree_le)})</span>
             {courante.android_minimum && <span className="inline-flex items-center gap-1 text-xs text-gray-600"><Smartphone className="h-3.5 w-3.5" aria-hidden="true" />{courante.android_minimum}</span>}
           </div>
         )}

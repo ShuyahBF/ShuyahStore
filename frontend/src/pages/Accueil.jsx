@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Download, FileSearch, RefreshCw, Search, ShieldCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Download, FileSearch, RefreshCw, Search, ShieldCheck, Tag } from "lucide-react";
 import { Etoiles, IconeApp, Patientez, Recommandee } from "@/components/Communs";
 import { useToast } from "@/components/Toast";
 import { apiClient, messageErreur } from "@/lib/api";
-import { nombre, taille } from "@/lib/format";
+import { dateFr, ilYa, nombre, taille } from "@/lib/format";
 
 // Tris proposés (liste finie → liste déroulante, règle 10)
 const TRIS = [["recommandees", "Recommandées d'abord"], ["recentes", "Les plus récentes"], ["telechargements", "Les plus téléchargées"], ["note", "Les mieux notées"], ["nom", "Par nom (A → Z)"]];
@@ -22,6 +22,8 @@ function CarteApp({ app }) {
           <Etoiles note={app.note_moyenne} nb={app.nb_avis} />
           <span className="inline-flex items-center gap-1 tabular-nums text-primary"><Download className="h-3.5 w-3.5" aria-hidden="true" />{nombre(app.telechargements)}</span>
           {app.version_courante && <span className="tabular-nums">{taille(app.version_courante.taille)}</span>}
+          {app.version_courante && <span className="inline-flex items-center gap-1 font-semibold text-ink" data-testid="version-courante"><Tag className="h-3.5 w-3.5 text-ocre" aria-hidden="true" />Version {app.version_courante.version_nom || app.version_courante.version_code}</span>}
+          {app.version_courante?.publie_le && <span className="inline-flex items-center gap-1" title={`Publiée le ${dateFr(app.version_courante.publie_le)}`} data-testid="publiee-il-y-a"><Clock className="h-3.5 w-3.5 text-gray-500" aria-hidden="true" />{ilYa(app.version_courante.publie_le)}</span>}
           {app.recommandee && <Recommandee />}
         </div>
       </div>

@@ -17,7 +17,7 @@ import presence_sawali
 import statistiques
 import version_plateforme
 from config import get_settings
-from db import db, ensure_indexes
+from db import db, ensure_indexes, remplir_dates_publication
 from outils import adresse_ip, iso
 from routes import admin, auth, avis, catalogue, developpeur, passkeys, sauvegardes, statistiques as routes_statistiques
 from securite import hash_password
@@ -72,6 +72,7 @@ _taches_fond: set = set()      # référence des tâches de fond (sinon Python p
 @app.on_event("startup")
 async def au_demarrage():
     await ensure_indexes()
+    await remplir_dates_publication()
     await ensure_admin()
     # Signal de présence auprès de SAWALI (règle 4) : au démarrage puis toutes les 5 minutes, en tâche de fond, jamais bloquant
     _taches_fond.add(asyncio.get_running_loop().create_task(presence_sawali.boucle_presence()))

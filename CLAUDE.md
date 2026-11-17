@@ -68,3 +68,5 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
 - Sauvegardes en ligne chiffrées (lot 9, 16/11/2026) : `backend/routes/sauvegardes.py` — coffre anonyme à deux clés pour les applications (Personnel de maison). Le téléphone chiffre TOUT (AES-256-GCM, clé
   dérivée de la phrase secrète de l'utilisateur) et n'envoie que des octets illisibles + un identifiant et un jeton DÉRIVÉS de la phrase ; le serveur ne garde que l'empreinte du jeton. Deux versions
   gardées (courante + précédente, comme auRor), 60 Mo au plus, 6 envois par heure et par adresse IP, 3000 sauvegardes au plus. Même principe que la sauvegarde en ligne d'auRor, sans compte.
+
+- Version en cours et durée depuis la dernière publication (17/11/2026) : le catalogue (carte), la fiche et « Toutes les applications » (administration) affichent « Version X » et « il y a 3 mois » (`ilYa` dans `frontend/src/lib/format.js`, testé par `frontend/tests/ilYa.test.mjs`). La date vient de `version_courante.publie_le`, posée à chaque publication ; `remplir_dates_publication` (db.py) la reprend au démarrage pour les applications déjà publiées.
