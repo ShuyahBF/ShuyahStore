@@ -34,9 +34,15 @@ export function AuthProvider({ children }) {
   }, []);
   /** Relit la fiche du compte (après un réglage de sécurité). */
   const actualiser = useCallback(async () => { const { data } = await apiClient.get("/auth/moi"); setUser(data); return data; }, []);
-  const inscrire = useCallback(async (nom, email, motDePasse, whatsapp) => {
-    const { data } = await apiClient.post("/auth/inscription", { nom, email, mot_de_passe: motDePasse, whatsapp });
-    setUser(data.user); return { ...data.user, whatsapp_code_envoye: data.whatsapp_code_envoye };
+  // `photoCnib` (File) : inscription avec la photo de la CNIB (lot 24, formulaire multipart) ; sinon inscription simple
+  const inscrire = useCallback(async (nom, email, motDePasse, whatsapp, photoCnib = null) => {
+    let data;
+    if (photoCnib) {
+      const f = new FormData();
+      f.append("nom", nom); f.append("email", email); f.append("mot_de_passe", motDePasse); f.append("whatsapp", whatsapp); f.append("cnib_photo", photoCnib);
+      data = (await apiClient.post("/auth/inscription-cnib", f)).data;
+    } else data = (await apiClient.post("/auth/inscription", { nom, email, mot_de_passe: motDePasse, whatsapp })).data;
+    setUser(data.user); return { ...data.user, whatsapp_code_envoye: data.whatsapp_code_envoye, cnib: data.cnib };
   }, []);
   const deconnecter = useCallback(async () => { try { await apiClient.post("/auth/deconnexion"); } finally { setUser(null); } }, []);
   const valeur = useMemo(() => ({ user, connecter, demanderCodeWhatsapp, connecterParWhatsapp, connecterParCleAcces, inscrire, deconnecter, actualiser }), [user, connecter, demanderCodeWhatsapp, connecterParWhatsapp, connecterParCleAcces, inscrire, deconnecter, actualiser]);

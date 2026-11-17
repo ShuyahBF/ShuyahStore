@@ -110,8 +110,9 @@ def _session(response: Response, user: dict) -> dict:
     return {"user": utilisateur_public(user), "access_token": jeton}
 
 
-@router.post("/inscription", status_code=status.HTTP_201_CREATED, dependencies=[Depends(limiter_appels_publics)])
-async def inscription(data: Inscription, response: Response):
+async def creer_compte(data: Inscription, response: Response, extra: dict | None = None) -> dict:
+    """Crée le compte (contrôles de l'e-mail et du numéro WhatsApp, mot de passe haché), ouvre la session et envoie le code du numéro.
+    `extra` : champs ajoutés à la fiche (ex. état de la CNIB, lot 24)."""
     email = normaliser_email(data.email)
     if not _EMAIL.match(email):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Adresse e-mail invalide")
@@ -123,7 +124,7 @@ async def inscription(data: Inscription, response: Response):
     if await db.users.find_one({"whatsapp": numero, "whatsapp_verifie_pour": numero}, {"_id": 1}):
         raise HTTPException(status.HTTP_409_CONFLICT, "Ce numéro WhatsApp est déjà utilisé par un autre compte")
     user = {"id": str(uuid.uuid4()), "nom": data.nom.strip(), "email": email, "role": "utilisateur", "whatsapp": numero,
-            "password_hash": hash_password(data.mot_de_passe), "version_session": 0, "cree_le": iso()}
+            "password_hash": hash_password(data.mot_de_passe), "version_session": 0, "cree_le": iso(), **(extra or {})}
     await db.users.insert_one(user.copy())
     # Code de vérification du numéro envoyé tout de suite (sans bloquer l'inscription s'il échoue : « Renvoyer le code » reste possible)
     code_envoye = False
@@ -134,6 +135,14 @@ async def inscription(data: Inscription, response: Response):
         except HTTPException:
             pass
     return {**_session(response, user), "whatsapp_code_envoye": code_envoye}
+
+
+@router.post("/inscription", status_code=status.HTTP_201_CREATED, dependencies=[Depends(limiter_appels_publics)])
+async def inscription(data: Inscription, response: Response):
+    # Lot 24 : quand la CNIB est exigée, l'inscription passe par le formulaire avec photo (/auth/inscription-cnib)
+    if get_settings().cnib_a_l_inscription:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "L'inscription demande la photo de votre CNIB : utilisez le formulaire d'inscription du site.")
+    return await creer_compte(data, response)
 
 
 @router.post("/connexion", dependencies=[Depends(limiter_appels_publics)])

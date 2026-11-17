@@ -4,6 +4,7 @@ import { AlertTriangle, BadgeCheck, Ban, BarChart3, FileDown, Send, Check, Check
 import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import { IconeApp, Patientez, Recommandee, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
+import RevueCnib from "@/components/RevueCnib";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient, lienApk, messageErreur } from "@/lib/api";
@@ -171,6 +172,8 @@ export default function Admin() {
       </section>
 
       {/* Signalements ouverts */}
+      <RevueCnib />
+
       <section className="space-y-2">
         <h2 className="text-lg font-bold">Signalements ouverts</h2>
         {t.signalements.length === 0 ? <p className="card text-sm text-gray-600">Aucun signalement ouvert.</p> : (

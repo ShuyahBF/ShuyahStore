@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Bell, BellOff, Copy, Download, Fingerprint, LogIn, ShieldCheck, ShieldOff, ShieldPlus, X } from "lucide-react";
 import ChampMotDePasse from "@/components/ChampMotDePasse";
+import CarteCnib from "@/components/CarteCnib";
 import ClesAcces from "@/components/ClesAcces";
 import JetonsDepot from "@/components/JetonsDepot";
 import NumeroWhatsApp from "@/components/NumeroWhatsApp";
@@ -123,6 +124,8 @@ export default function Compte() {
       <NumeroWhatsApp />
 
       <VerificationEmail />
+
+      <CarteCnib />
 
       <ClesAcces />
 

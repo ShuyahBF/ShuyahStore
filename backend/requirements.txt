@@ -14,3 +14,4 @@ cryptography==44.0.3        # signatures des APK (certificats, RSA / ECDSA), sec
 python-multipart==0.0.9     # réception des fichiers envoyés par formulaire (APK, icône)
 webauthn==2.5.2            # clés d'accès (empreinte, visage ou code du téléphone sur le site)
 reportlab==4.2.5            # rapports de statistiques en PDF (envoyés par WhatsApp)
+Pillow==10.4.0              # examen des photos de CNIB (couleur, taille, réencodage sans métadonnées)

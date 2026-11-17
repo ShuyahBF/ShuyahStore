@@ -58,6 +58,13 @@ async def deposer(fichier: UploadFile = File(...), nom: str = Form(""), resume: 
     # 0. adresse e-mail vérifiée (lot 6) : exigée si l'envoi d'e-mails est configuré (réglage EMAIL_VERIFIE_POUR_DEPOSER)
     if verification_obligatoire_pour_deposer() and not utilisateur_public(user).get("email_verifie"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Vérifiez d'abord votre adresse e-mail (page « Mon Compte ») : un code vous y est envoyé. Cela montre aux utilisateurs que vous êtes joignable.")
+    # 0 bis. CNIB (lot 24) : un compte inscrit avec CNIB doit l'avoir vérifiée et non expirée (comptes antérieurs : aucune exigence)
+    if user.get("cnib_statut") is not None:
+        expire = user.get("cnib_expire_le")
+        if user["cnib_statut"] != "verifiee":
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Votre CNIB n'est pas encore vérifiée : l'administrateur la contrôle, ou renvoyez une photo lisible (page « Mon Compte »).")
+        if expire and expire < date.today().isoformat():
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Votre CNIB est expirée : envoyez la photo de la nouvelle (page « Mon Compte »).")
     # 1. limite de dépôts par jour (anti-abus)
     if await db.versions.count_documents({"depose_par": user["id"], "jour": date.today().isoformat()}) >= s.depots_par_jour:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"Limite atteinte : {s.depots_par_jour} dépôts par jour")

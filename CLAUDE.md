@@ -77,3 +77,11 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
 
 - Connexion par NUMÉRO WhatsApp (lot 23, 17/11/2026 : « j'essaie de me connecter par numéro de téléphone ») : `POST /api/auth/connexion-whatsapp/demande` puis `POST /api/auth/connexion-whatsapp` (numéro VÉRIFIÉ exigé, sans e-mail ni mot de passe). Même code et mêmes limites que
   la connexion par e-mail (1 envoi par minute, 10 par jour, 5 essais, usage unique, 10 minutes) ; réponse identique que le numéro existe ou non ; un numéro inconnu compte comme un essai raté ; la double authentification par application reste exigée si elle est activée.
+
+- CNIB à l'inscription (lot 24, 17/11/2026 : « photo couleur de sa CNIB… analysée, date d'expiration vérifiée… comme beAuthentik ») : `backend/cnib.py` + `backend/routes/cnib.py`
+  (`POST /auth/inscription-cnib`, `/moi/cnib`, `/admin/cnib…`), site : `ChampCnib`, `CarteCnib`, `RevueCnib`. Réglage `CNIB_A_L_INSCRIPTION` (défaut oui), âge minimum 18 ans.
+  Chaîne : examen de l'image (format, taille, COULEUR, métadonnées retirées) → lecture par l'IA (clé `ANTHROPIC_API_KEY`, SECRET saisi par le propriétaire dans Render) qui
+  TRANSCRIT seulement → décision par du code pur (`decider`, testée) : défaut certain = refus (rien n'est gardé), doute ou IA absente = revue humaine, jamais d'approbation automatique sans lecture.
+  Une même CNIB (empreinte HMAC du numéro) n'ouvre pas deux comptes ; photo CHIFFRÉE (Fernet) en base, lisible par l'administrateur seul, à la demande, sans cache ; seul le numéro masqué est gardé.
+  Les comptes créés avant le lot 24 ne sont pas touchés ; un compte avec CNIB non vérifiée ou expirée ne dépose pas d'APK. 6 analyses par heure et par adresse IP. Tests : `tests/test_cnib.py`.
+  Confidentialité : la photo est envoyée au service d'IA d'Anthropic pour lecture (à dire dans la politique de confidentialité).
