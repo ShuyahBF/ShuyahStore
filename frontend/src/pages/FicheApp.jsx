@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, BadgeCheck, Download, FileSearch, Flag, Globe, History, Mail, MessageSquarePlus, RefreshCw, Save, Send, Smartphone, Star, Trash2, X } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Download, FileSearch, Flag, Globe, History, Mail, MessageSquarePlus, RefreshCw, Save, Send, Smartphone, Star, Trash2, UserRound, X } from "lucide-react";
 import BlocSignature, { Autorisations } from "@/components/BlocSignature";
 import BoutonInstaller from "@/components/BoutonInstaller";
 import { Etoiles, IconeApp, Patientez, Recommandee, Statut } from "@/components/Communs";
@@ -70,7 +70,7 @@ export default function FicheApp() {
         <IconeApp app={app} taille="h-20 w-20" />
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">{app.nom}</h1>
-          <p className="flex flex-wrap items-center gap-x-2 text-sm text-gray-600">{app.nom_developpeur}{app.developpeur_verifie && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900" title="Le développeur a prouvé qu'il reçoit les e-mails de cette adresse"><BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />e-mail vérifié</span>} · {app.categorie_libelle}</p>
+          <p className="flex flex-wrap items-center gap-x-2 text-base font-semibold text-primary" data-testid="developpeur"><UserRound className="h-4 w-4" aria-hidden="true" /><span className="text-sm font-normal text-gray-600">Développeur :</span> {app.nom_developpeur}{app.developpeur_verifie && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900" title="Le développeur a prouvé qu'il reçoit les e-mails de cette adresse"><BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />e-mail vérifié</span>} · {app.categorie_libelle}</p>
           <p className="mt-0.5 break-all font-mono text-xs text-primary">{app.paquet}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <Etoiles note={app.note_moyenne} nb={app.nb_avis} />

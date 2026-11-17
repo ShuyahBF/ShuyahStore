@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Clock, Download, FileSearch, RefreshCw, Search, ShieldCheck, Tag } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Download, FileSearch, RefreshCw, Search, ShieldCheck, Tag, UserRound } from "lucide-react";
 import { Etoiles, IconeApp, Patientez, Recommandee } from "@/components/Communs";
 import { useToast } from "@/components/Toast";
 import { apiClient, messageErreur } from "@/lib/api";
@@ -16,7 +16,8 @@ function CarteApp({ app }) {
       <IconeApp app={app} />
       <div className="min-w-0 flex-1">
         <p className="truncate font-display font-semibold text-ink">{app.nom}</p>
-        <p className="truncate text-xs text-gray-600">{app.nom_developpeur} · {app.categorie_libelle}</p>
+        <p className="flex items-center gap-1 truncate text-sm font-semibold text-primary" data-testid="developpeur" title="Développeur"><UserRound className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="truncate">{app.nom_developpeur}</span></p>
+        <p className="truncate text-xs text-gray-600">{app.categorie_libelle}</p>
         {app.resume && <p className="mt-1 line-clamp-2 text-sm text-gray-700">{app.resume}</p>}
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
           <Etoiles note={app.note_moyenne} nb={app.nb_avis} />
