@@ -17,6 +17,13 @@ export function AuthProvider({ children }) {
     if (data.wa_requis) return { wa_requis: true, numero_masque: data.numero_masque, validite_minutes: data.validite_minutes };
     setUser(data.user); return data.user;
   }, []);
+  /** Connexion par NUMÉRO WhatsApp : 1) demande du code, 2) saisie du code (puis code de l'application si la double authentification est activée). */
+  const demanderCodeWhatsapp = useCallback(async (whatsapp) => (await apiClient.post("/auth/connexion-whatsapp/demande", { whatsapp })).data, []);
+  const connecterParWhatsapp = useCallback(async (whatsapp, codeWa, code = "") => {
+    const { data } = await apiClient.post("/auth/connexion-whatsapp", { whatsapp, code_wa: codeWa, code });
+    if (data.a2f_requise) return { a2f_requise: true };
+    setUser(data.user); return data.user;
+  }, []);
   /** Connexion par clé d'accès (empreinte, visage ou code du téléphone) : déjà une authentification forte, aucun second code n'est demandé. */
   const connecterParCleAcces = useCallback(async () => {
     const { signerAvecCleAcces } = await import("@/lib/passkeys");
@@ -32,7 +39,7 @@ export function AuthProvider({ children }) {
     setUser(data.user); return { ...data.user, whatsapp_code_envoye: data.whatsapp_code_envoye };
   }, []);
   const deconnecter = useCallback(async () => { try { await apiClient.post("/auth/deconnexion"); } finally { setUser(null); } }, []);
-  const valeur = useMemo(() => ({ user, connecter, connecterParCleAcces, inscrire, deconnecter, actualiser }), [user, connecter, connecterParCleAcces, inscrire, deconnecter, actualiser]);
+  const valeur = useMemo(() => ({ user, connecter, demanderCodeWhatsapp, connecterParWhatsapp, connecterParCleAcces, inscrire, deconnecter, actualiser }), [user, connecter, demanderCodeWhatsapp, connecterParWhatsapp, connecterParCleAcces, inscrire, deconnecter, actualiser]);
   return <AuthContext.Provider value={valeur}>{children}</AuthContext.Provider>;
 }
 

@@ -446,6 +446,72 @@ async def whatsapp_verifier(data: CodeEmail, user: dict = Depends(get_current_us
 
 
 # ----------------------------------------------------------------------------------------------------------------------
+# Connexion par NUMÉRO WhatsApp (sans e-mail ni mot de passe) : on saisit son numéro VÉRIFIÉ, un code à 6 chiffres arrive par WhatsApp (Liluvine),
+# on le saisit. Même code, mêmes limites (1 envoi par minute, 10 par jour, 5 essais, usage unique, 10 minutes) que la connexion par e-mail.
+# Réponse IDENTIQUE que le numéro existe ou non (aucune énumération des comptes). Un compte avec double authentification par application
+# doit encore donner ce second code : le code WhatsApp remplace le mot de passe, pas la double authentification.
+# ----------------------------------------------------------------------------------------------------------------------
+REPONSE_NEUTRE_WA = {"ok": True, "message": "Si ce numéro est enregistré et vérifié, un code vient d'être envoyé par WhatsApp.", "validite_minutes": VALIDITE_WA_MIN}
+
+
+class DemandeCodeWa(BaseModel):
+    whatsapp: str = Field(min_length=6, max_length=25)
+
+
+class ConnexionWa(BaseModel):
+    whatsapp: str = Field(min_length=6, max_length=25)
+    code_wa: str = Field(min_length=1, max_length=12)
+    code: str = Field("", max_length=20)          # double authentification (application) si elle est activée sur le compte
+
+
+async def _compte_par_numero(brut: str) -> tuple[str | None, dict | None]:
+    """(numéro normalisé, compte actif dont ce numéro est VÉRIFIÉ) ; (None, None) si le numéro est invalide."""
+    numero = liluvine_wa.normaliser_numero(brut)
+    if not numero:
+        return None, None
+    user = await db.users.find_one({"whatsapp": numero, "whatsapp_verifie_pour": numero, "desactive": {"$ne": True}}, {"_id": 0})
+    return numero, user
+
+
+@router.post("/connexion-whatsapp/demande", dependencies=[Depends(limiter_appels_publics)])
+async def connexion_whatsapp_demande(data: DemandeCodeWa, request: Request):
+    """Envoie un code de connexion au numéro WhatsApp vérifié. 503 seulement si WhatsApp n'est pas configuré sur le serveur."""
+    if not liluvine_wa.configure():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "La connexion par WhatsApp n'est pas encore activée sur ShuyahStore.")
+    numero, user = await _compte_par_numero(data.whatsapp)
+    if not numero:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Numéro WhatsApp invalide (exemple : +226 70 12 34 56)")
+    cle = f"demande-wa:{numero}:{adresse_ip(request)}"
+    await verifier_non_bloque(cle)
+    if user:
+        try:
+            await _envoyer_code_wa(user, "connexion", numero)
+        except HTTPException:
+            pass                                    # trop rapide / trop de demandes / envoi impossible : même réponse (rien n'est révélé)
+    else:
+        await noter_echec(cle)                      # un numéro inconnu compte comme un essai : on ne peut pas balayer les numéros
+    return REPONSE_NEUTRE_WA
+
+
+@router.post("/connexion-whatsapp", dependencies=[Depends(limiter_appels_publics)])
+async def connexion_whatsapp(data: ConnexionWa, request: Request, response: Response):
+    numero, user = await _compte_par_numero(data.whatsapp)
+    cle = f"connexion-wa:{numero or 'invalide'}:{adresse_ip(request)}"
+    await verifier_non_bloque(cle)
+    if not user or not await _code_wa_valide(user, "connexion", data.code_wa):
+        await noter_echec(cle)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Code WhatsApp incorrect, expiré ou déjà utilisé")
+    if (user.get("a2f") or {}).get("actif"):
+        if not data.code.strip():
+            return {"a2f_requise": True}
+        if not await verifier_second_facteur(user, data.code):
+            await noter_echec(cle)
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Code de double authentification incorrect ou déjà utilisé")
+    await effacer_echecs(cle)
+    return _session(response, user)
+
+
+# ----------------------------------------------------------------------------------------------------------------------
 # Jetons de dépôt (lot 8) : gestion par l'utilisateur (création, liste, révocation) — mot de passe redemandé
 # ----------------------------------------------------------------------------------------------------------------------
 JETONS_MAX = 5

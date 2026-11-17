@@ -13,7 +13,7 @@ import { libelleVersion } from "@/version";
 // Page de connexion CENTRÉE (carte avec logo), avec l'état du serveur et la version. Le même écran sert à créer un compte.
 // Un compte n'est nécessaire que pour donner un avis ou déposer une application — jamais pour télécharger.
 export default function Connexion() {
-  const { user, connecter, connecterParCleAcces, inscrire } = useAuth();
+  const { user, connecter, demanderCodeWhatsapp, connecterParWhatsapp, connecterParCleAcces, inscrire } = useAuth();
   const toast = useToast();
   const naviguer = useNavigate();
   const [params] = useSearchParams();
@@ -24,6 +24,9 @@ export default function Connexion() {
   const [code, setCode] = useState(""); const [secours, setSecours] = useState(false);
   const [wa, setWa] = useState(null);                            // demande de connexion : code reçu par WhatsApp { numero_masque, validite_minutes }
   const [codeWa, setCodeWa] = useState("");
+  // Connexion par NUMÉRO WhatsApp : sans e-mail ni mot de passe. etapeNum : "numero" (saisie du numéro) puis "code" (code reçu sur WhatsApp).
+  const [parNumero, setParNumero] = useState(false);
+  const [etapeNum, setEtapeNum] = useState("numero");
   const suite = params.get("suite") || "/";
   if (user) return <Navigate to={suite} replace />;
 
@@ -32,6 +35,22 @@ export default function Connexion() {
     try { const u = await connecterParCleAcces(); toast.succes(`Bienvenue ${u.nom}`); naviguer(suite, { replace: true }); }
     catch (err) { toast.erreur(messageCleAcces(err) || messageErreur(err, "Connexion par clé d'accès impossible")); } finally { setOccupe(false); }
   };
+  /** Étape 1 : demande du code au numéro ; étape 2 : vérification du code (et de la double authentification si elle est activée). */
+  const validerNumero = async (e) => {
+    e.preventDefault(); setOccupe(true);
+    try {
+      if (etapeNum === "numero") {
+        const r = await demanderCodeWhatsapp(f.whatsapp);
+        toast.info(r.message); setEtapeNum("code"); setCodeWa("");
+        return;
+      }
+      toast.info("Vérification du code… Patientez…");
+      const u = await connecterParWhatsapp(f.whatsapp, codeWa, etape2 ? code : "");
+      if (u.a2f_requise) { setEtape2(true); toast.info("Code accepté. Saisissez maintenant votre code de double authentification."); return; }
+      toast.succes(`Bienvenue ${u.nom}`); naviguer(suite, { replace: true });
+    } catch (err) { toast.erreur(messageErreur(err, "Connexion par WhatsApp impossible")); } finally { setOccupe(false); }
+  };
+  const basculerNumero = (actif) => { setParNumero(actif); setCreation(false); setEtapeNum("numero"); setEtape2(false); setCode(""); setCodeWa(""); setWa(null); };
   const champ = (cle) => (e) => setF({ ...f, [cle]: e.target.value });
   const valider = async (e) => {
     e.preventDefault();
@@ -48,18 +67,33 @@ export default function Connexion() {
 
   return (
     <div className="mx-auto max-w-md py-6">
-      <form onSubmit={valider} className="card space-y-4">
+      <form onSubmit={parNumero ? validerNumero : valider} className="card space-y-4">
         <div className="text-center">
           <Store className="mx-auto h-12 w-12 text-ocre" aria-hidden="true" />
           <h1 className="mt-2 text-2xl font-bold">Shuyah<span className="text-ocre">Store</span></h1>
-          <p className="mt-1 text-sm text-gray-600">{creation ? "Créer un compte pour donner un avis ou déposer vos applications." : "Connectez-vous pour donner un avis ou déposer vos applications."}</p>
+          <p className="mt-1 text-sm text-gray-600">{creation ? "Créer un compte pour donner un avis ou déposer vos applications." : parNumero ? "Connectez-vous avec votre numéro WhatsApp : un code vous est envoyé." : "Connectez-vous pour donner un avis ou déposer vos applications."}</p>
         </div>
         {creation && <div><label className="label" htmlFor="c-nom">Nom (ou nom de votre studio)</label>
           <input id="c-nom" className="input" required minLength={2} maxLength={80} placeholder={`Ex. ${EXEMPLE_NOM}`} value={f.nom} onChange={champ("nom")} autoComplete="name" /></div>}
-        <div><label className="label" htmlFor="c-email">Adresse e-mail</label>
-          <input id="c-email" className="input" type="email" required maxLength={120} placeholder={`Ex. ${EXEMPLE_EMAIL}`} value={f.email} onChange={champ("email")} autoComplete="email" /></div>
-        <div><label className="label" htmlFor="c-mdp">Mot de passe{creation && " (8 caractères au moins)"}</label>
-          <ChampMotDePasse id="c-mdp" required minLength={creation ? 8 : 1} maxLength={128} value={f.mdp} onChange={champ("mdp")} autoComplete={creation ? "new-password" : "current-password"} /></div>
+        {parNumero && !creation && (
+          <div className="space-y-3">
+            <div><label className="label" htmlFor="c-num">Numéro WhatsApp du compte</label>
+              <input id="c-num" className="input" type="tel" required minLength={6} maxLength={25} placeholder="Ex. +226 70 12 34 56" value={f.whatsapp} onChange={champ("whatsapp")} autoComplete="tel" disabled={etapeNum === "code"} autoFocus />
+              <p className="mt-1 text-xs text-gray-600">Le numéro doit avoir été vérifié dans « Mon Compte ».</p></div>
+            {etapeNum === "code" && (
+              <div className="space-y-2 rounded-lg border-2 border-emerald-400 bg-emerald-50 p-3" data-testid="etape-numero-code">
+                <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900"><MessageCircle className="h-4 w-4" aria-hidden="true" />Code reçu sur WhatsApp</p>
+                <label className="label" htmlFor="c-code-num">Code à 6 chiffres (valable 10 minutes)</label>
+                <input id="c-code-num" className="input font-mono tracking-widest" required autoFocus autoComplete="one-time-code" inputMode="numeric" maxLength={7} value={codeWa} onChange={(e) => setCodeWa(e.target.value.replace(/[^\d ]/g, ""))} />
+                <button type="button" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary underline" onClick={() => { setEtapeNum("numero"); setCodeWa(""); }}>Changer de numéro ou renvoyer le code</button>
+              </div>
+            )}
+          </div>
+        )}
+        {!parNumero && <div><label className="label" htmlFor="c-email">Adresse e-mail</label>
+          <input id="c-email" className="input" type="email" required maxLength={120} placeholder={`Ex. ${EXEMPLE_EMAIL}`} value={f.email} onChange={champ("email")} autoComplete="email" /></div>}
+        {!parNumero && <div><label className="label" htmlFor="c-mdp">Mot de passe{creation && " (8 caractères au moins)"}</label>
+          <ChampMotDePasse id="c-mdp" required minLength={creation ? 8 : 1} maxLength={128} value={f.mdp} onChange={champ("mdp")} autoComplete={creation ? "new-password" : "current-password"} /></div>}
         {creation && <div><label className="label" htmlFor="c-wa">Numéro WhatsApp (obligatoire)</label>
           <input id="c-wa" className="input" type="tel" required minLength={6} maxLength={25} placeholder="Ex. +226 70 12 34 56" value={f.whatsapp} onChange={champ("whatsapp")} autoComplete="tel" />
           <p className="mt-1 text-xs text-gray-600">Il reçoit votre code de connexion, envoyé par Liluvine.</p></div>}
@@ -86,9 +120,11 @@ export default function Connexion() {
         )}
         <button type="submit" className="btn-primary w-full" disabled={occupe}>
           {occupe ? <span className="jauge jauge-petite border-white/40 border-t-white" aria-hidden="true" /> : creation ? <UserPlus className="h-4 w-4" aria-hidden="true" /> : <LogIn className="h-4 w-4" aria-hidden="true" />}
-          {occupe ? "Patientez…" : creation ? "Créer mon compte" : "Se connecter"}</button>
-        {!creation && clesAccesDisponibles() && <button type="button" className="btn-vert w-full" disabled={occupe} onClick={parCleAcces} data-testid="connexion-cle-acces"><Fingerprint className="h-4 w-4" aria-hidden="true" />Se connecter avec mon empreinte (clé d'accès)</button>}
-        <button type="button" className="btn-outline w-full" onClick={() => { setCreation((c) => !c); setEtape2(false); setCode(""); setWa(null); setCodeWa(""); }}>
+          {occupe ? "Patientez…" : creation ? "Créer mon compte" : parNumero ? (etapeNum === "numero" ? "Recevoir un code" : "Valider le code") : "Se connecter"}</button>
+        {!creation && <button type="button" className="btn-outline w-full" disabled={occupe} onClick={() => basculerNumero(!parNumero)} data-testid="connexion-par-numero">
+          {parNumero ? <LogIn className="h-4 w-4" aria-hidden="true" /> : <MessageCircle className="h-4 w-4" aria-hidden="true" />}{parNumero ? "Revenir à l'e-mail et au mot de passe" : "Se connecter par numéro WhatsApp"}</button>}
+        {!creation && !parNumero && clesAccesDisponibles() && <button type="button" className="btn-vert w-full" disabled={occupe} onClick={parCleAcces} data-testid="connexion-cle-acces"><Fingerprint className="h-4 w-4" aria-hidden="true" />Se connecter avec mon empreinte (clé d'accès)</button>}
+        <button type="button" className="btn-outline w-full" onClick={() => { setCreation((c) => !c); setParNumero(false); setEtape2(false); setCode(""); setWa(null); setCodeWa(""); }}>
           {creation ? <LogIn className="h-4 w-4" aria-hidden="true" /> : <UserPlus className="h-4 w-4" aria-hidden="true" />}{creation ? "J'ai déjà un compte" : "Créer un compte"}</button>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600"><EtatServeur /><span>{libelleVersion()}</span></div>
       </form>
