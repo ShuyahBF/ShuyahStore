@@ -57,6 +57,10 @@ export function suivis() { try { return dansApplication() ? JSON.parse(window.Sh
 export function oublier(paquet) { try { if (dansApplication()) window.ShuyahStoreAndroid.oublier(paquet); } catch { /* sans importance */ } }
 
 // ---- Verrou de l'application par empreinte
+/** Notifications de mise à jour (application Android) : { actif, autorise } ; autorise = permission d'Android accordée. */
+export function notificationsMaj() { try { return dansApplication() ? JSON.parse(window.ShuyahStoreAndroid.notificationsMaj()) : null; } catch { return null; } }
+export function definirNotificationsMaj(actif) { try { if (dansApplication()) window.ShuyahStoreAndroid.definirNotificationsMaj(!!actif); return true; } catch { return false; } }
+
 export function verrouActif() { try { return dansApplication() && !!window.ShuyahStoreAndroid.verrouActif(); } catch { return false; } }
 /** Active ou désactive le verrou (le téléphone demande d'abord l'empreinte). Rend { ok, actif } | { erreur }. */
 export function definirVerrou(actif) {
