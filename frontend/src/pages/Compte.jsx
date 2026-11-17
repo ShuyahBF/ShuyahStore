@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, Copy, Download, Fingerprint, LogIn, ShieldCheck, ShieldOff, ShieldPlus, X } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, Copy, Download, Fingerprint, LogIn, ShieldCheck, ShieldOff, ShieldPlus, X } from "lucide-react";
 import ChampMotDePasse from "@/components/ChampMotDePasse";
 import ClesAcces from "@/components/ClesAcces";
 import JetonsDepot from "@/components/JetonsDepot";
@@ -12,7 +12,7 @@ import { useToast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient, messageErreur } from "@/lib/api";
 import { dateFr } from "@/lib/format";
-import { capacites, dansApplication, definirVerrou, verrouActif } from "@/lib/pontAndroid";
+import { capacites, dansApplication, definirNotificationsMaj, definirVerrou, notificationsMaj, verrouActif } from "@/lib/pontAndroid";
 
 // MON COMPTE : identité et SÉCURITÉ. La double authentification s'active et se désactive ici (lot 3) :
 //   activer    = mot de passe → QR code à scanner dans une application d'authentification → code de confirmation → codes de secours ;
@@ -37,7 +37,29 @@ export default function Compte() {
     else toast.erreur(r.erreur || "Réglage non modifié");
   };
 
+  // Application Android : notifications de mise à jour (vérification toutes les 6 heures, un clic ouvre « Mes applications »)
+  const [notifMaj, setNotifMaj] = useState(notificationsMaj());
+  const basculerNotifMaj = () => {
+    const futur = !(notifMaj?.actif);
+    toast.info(futur ? "Activation des notifications en cours…" : "Désactivation des notifications en cours…");
+    definirNotificationsMaj(futur);
+    setTimeout(() => { setNotifMaj(notificationsMaj()); toast.succes(futur ? "Notifications de mise à jour activées" : "Notifications de mise à jour désactivées"); }, 400);
+  };
+
   if (user === undefined) return <Patientez />;
+
+  const blocNotifMaj = dansApplication() && notifMaj && (
+    <section className="card space-y-3" data-testid="bloc-notif-maj">
+      <h2 className="text-lg font-bold">Notifications de mise à jour</h2>
+      <p className="text-sm text-gray-700">ShuyahStore vérifie toutes les 6 heures si une application installée a une version plus récente et vous prévient. Un clic sur la notification ouvre « Mes applications ». La liste de vos applications reste sur ce téléphone.</p>
+      {notifMaj.actif && !notifMaj.autorise && <p className="flex items-start gap-2 rounded-lg bg-amber-100 p-3 text-sm text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Android n'autorise pas encore les notifications de ShuyahStore : activez-les dans les paramètres du téléphone (Applications → ShuyahStore → Notifications).</span></p>}
+      {notifMaj.actif
+        ? <><p className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-semibold text-emerald-900"><Bell className="h-5 w-5" aria-hidden="true" />Activées</p>
+            <button type="button" className="btn-outline border-red-300 text-red-800" onClick={basculerNotifMaj}><BellOff className="h-4 w-4" aria-hidden="true" />Désactiver les notifications</button></>
+        : <><p className="flex items-center gap-2 rounded-lg bg-gray-100 p-3 text-sm font-semibold text-gray-800"><BellOff className="h-5 w-5" aria-hidden="true" />Désactivées</p>
+            <button type="button" className="btn-vert" onClick={basculerNotifMaj}><Bell className="h-4 w-4" aria-hidden="true" />Activer les notifications</button></>}
+    </section>
+  );
 
   const blocVerrou = dansApplication() && (
     <section className="card space-y-3" data-testid="bloc-verrou">
@@ -118,6 +140,8 @@ export default function Compte() {
       </section>
 
       <JetonsDepot />
+
+      {blocNotifMaj}
 
       {blocVerrou}
 

@@ -11,6 +11,9 @@
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- Savoir quelles applications du catalogue sont installées, et dans quelle version (comparaison faite SUR le téléphone, rien n'est envoyé) -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- Notification « mise à jour disponible » (Android 13 et plus : l'utilisateur est interrogé) et vérification rejouée après un redémarrage du téléphone -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Verrou de l'application par empreinte -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
@@ -33,5 +36,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Vérification périodique des mises à jour (JobScheduler) -->
+        <service android:name=".MajNotifications$JobMaj" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" />
     </application>
 </manifest>

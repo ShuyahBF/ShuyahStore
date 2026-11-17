@@ -53,6 +53,18 @@ class WebActivity : FragmentActivity() {
         choixFichier?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(r.resultCode, r.data)); choixFichier = null
     }
 
+    // Autorisation de notifier (Android 13 et plus) : demandée une seule fois ; l'utilisateur peut la refuser sans perdre le reste de l'application
+    private val demandeNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Demande l'autorisation de notifier (Android 13 et plus) quand l'utilisateur réactive le réglage. */
+    fun demanderAutorisationNotifications() { if (Build.VERSION.SDK_INT >= 33) demandeNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+
+    /** Page de ShuyahStore demandée par une notification (ex. « mes-applications »), ou la page d'accueil. */
+    private fun pageDemandee(i: Intent?): String {
+        val chemin = i?.getStringExtra(MajNotifications.EXTRA_OUVRIR)?.trim('/')?.takeIf { it.matches(Regex("[a-z0-9-]+")) }
+        return if (chemin != null) adresseSite.toString().trimEnd('/') + "/" + chemin else adresseSite.toString()
+    }
+
     /** Vrai pour une page de ShuyahStore (site ou API) : seules celles-ci restent dans la fenêtre et peuvent appeler le pont. */
     private fun estShuyahStore(u: Uri): Boolean {
         val h = u.host ?: return false
@@ -125,8 +137,15 @@ class WebActivity : FragmentActivity() {
             override fun handleOnBackPressed() { if (web.canGoBack()) web.goBack() else finish() }
         })
 
-        if (savedInstanceState != null) web.restoreState(savedInstanceState) else web.loadUrl(adresseSite.toString())
+        if (savedInstanceState != null) web.restoreState(savedInstanceState) else web.loadUrl(pageDemandee(intent))
         traiterResultatInstallation(intent)
+        // Notifications de mise à jour : tâche planifiée (si le réglage est actif) et demande d'autorisation la première fois
+        if (MajNotifications.actif(this)) {
+            MajNotifications.planifier(this)
+            if (Build.VERSION.SDK_INT >= 33 && !MajNotifications.peutNotifier(this) && !MajNotifications.permissionDemandee(this)) {
+                MajNotifications.permissionMarquee(this); demandeNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
     }
 
     private fun ouvrirAilleurs(u: Uri) {
@@ -134,7 +153,10 @@ class WebActivity : FragmentActivity() {
     }
 
     // ------------------------------------------------------------------ résultat d'une installation (envoyé par Android)
-    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); traiterResultatInstallation(intent) }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent); traiterResultatInstallation(intent)
+        if (intent.hasExtra(MajNotifications.EXTRA_OUVRIR)) web.loadUrl(pageDemandee(intent))      // clic sur la notification de mise à jour
+    }
 
     private fun traiterResultatInstallation(intent: Intent?) {
         if (intent?.action != Installeur.ACTION_RESULTAT) return

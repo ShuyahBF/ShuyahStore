@@ -72,6 +72,17 @@ class Pont(private val activite: WebActivity) {
     }
 
     // ---- Verrou de l'application par empreinte
+    /** Notifications de mise à jour : réglage actif ? (et autorisation d'Android accordée ?) */
+    @JavascriptInterface
+    fun notificationsMaj(): String = JSONObject().put("actif", MajNotifications.actif(activite)).put("autorise", MajNotifications.peutNotifier(activite)).toString()
+
+    /** Active ou coupe les notifications de mise à jour (la tâche planifiée est créée ou supprimée). */
+    @JavascriptInterface
+    fun definirNotificationsMaj(actif: Boolean) {
+        MajNotifications.definirActif(activite, actif)
+        if (actif && !MajNotifications.peutNotifier(activite)) activite.runOnUiThread { activite.demanderAutorisationNotifications() }
+    }
+
     @JavascriptInterface
     fun verrouActif(): Boolean = Verrou.actif(activite)
 
