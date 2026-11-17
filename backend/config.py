@@ -35,6 +35,9 @@ class Settings(BaseSettings):
 
     # --- CNIB à l'inscription (lot 24) : photo couleur de la carte nationale d'identité burkinabè, analysée avant d'ouvrir le compte ---
     cnib_a_l_inscription: bool = True         # False : l'inscription redevient simple (sans photo de CNIB)
+    cnib_cle: str = ""                        # SECRET (Render) : clé DÉDIÉE au chiffrement des CNIB, distincte de JWT_SECRET (16 caractères minimum). Vide = repli sur JWT_SECRET (déconseillé)
+    cnib_admin_a2f_obligatoire: bool = True   # voir ou décider une CNIB exige la double authentification de l'administrateur
+    cnib_revue_jours_max: int = 30            # une CNIB « à vérifier » non traitée au bout de ce délai perd sa photo (nouvelle soumission nécessaire)
     cnib_age_minimum: int = 18                # âge minimal lu sur la CNIB (en dessous : refus)
     anthropic_api_key: str = ""               # SECRET saisi par le propriétaire dans Render ; sans clé, toute CNIB passe en revue humaine (jamais d'approbation automatique)
     anthropic_model: str = "claude-sonnet-5-5"

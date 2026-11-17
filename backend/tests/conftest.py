@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 
-os.environ.update({"CNIB_A_L_INSCRIPTION": "0", "MONGO_URL": "mongomock://", "JWT_SECRET": "secret-de-test-assez-long-pour-hs256-0123456789", "ADMIN_EMAIL": "admin@test.bf",
+os.environ.update({"CNIB_A_L_INSCRIPTION": "0", "CNIB_ADMIN_A2F_OBLIGATOIRE": "0", "MONGO_URL": "mongomock://", "JWT_SECRET": "secret-de-test-assez-long-pour-hs256-0123456789", "ADMIN_EMAIL": "admin@test.bf",
                    "ADMIN_PASSWORD": "admin-motdepasse", "PRESENCE_SAWALI": "0", "FRONTEND_ORIGIN": "https://shuyahstore.test"})
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))

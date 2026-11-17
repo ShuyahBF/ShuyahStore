@@ -52,29 +52,49 @@ PROMPT_LECTURE = (
 
 
 # ------------------------------------------------------------------ chiffrement et empreinte
-def _chiffreur() -> Fernet:
-    return Fernet(base64.urlsafe_b64encode(hashlib.sha256((get_settings().jwt_secret + "|cnib").encode()).digest()))
+def _fernet(secret: str) -> Fernet:
+    return Fernet(base64.urlsafe_b64encode(hashlib.sha256((secret + "|cnib").encode()).digest()))
+
+
+def _cles() -> list[Fernet]:
+    """Clés de déchiffrement : la clé dédiée (CNIB_CLE) d'abord, puis l'ancienne dérivée de JWT_SECRET (photos rangées avant le lot 25)."""
+    s = get_settings()
+    return ([_fernet(s.cnib_cle)] if s.cnib_cle else []) + [_fernet(s.jwt_secret)]
+
+
+def cle_dediee_active() -> bool:
+    return bool(get_settings().cnib_cle)
 
 
 def chiffrer(octets: bytes) -> bytes:
-    return _chiffreur().encrypt(octets)
+    """Chiffre avec la clé dédiée si elle existe (sinon repli sur JWT_SECRET, signalé à l'administrateur)."""
+    return _cles()[0].encrypt(octets)
 
 
 def dechiffrer(octets: bytes) -> bytes | None:
-    try:
-        return _chiffreur().decrypt(octets)
-    except (InvalidToken, ValueError):
-        return None
+    for f in _cles():
+        try:
+            return f.decrypt(octets)
+        except (InvalidToken, ValueError):
+            continue
+    return None
 
 
 def normaliser_numero(numero: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", str(numero or "").upper())
 
 
+def empreintes_numero(numero: str) -> list[str]:
+    """Empreintes HMAC du numéro de CNIB (jamais le numéro lui-même) : la première est celle à ranger ; toutes servent à chercher un doublon
+    (une empreinte rangée avant le lot 25 utilisait JWT_SECRET)."""
+    s = get_settings()
+    n = normaliser_numero(numero).encode()
+    secrets_ = ([s.cnib_cle] if s.cnib_cle else []) + [s.jwt_secret]
+    return [hmac.new((x + "|cnib-numero").encode(), n, hashlib.sha256).hexdigest() for x in secrets_]
+
+
 def empreinte_numero(numero: str) -> str:
-    """Empreinte HMAC du numéro de CNIB (jamais le numéro lui-même) : sert seulement à détecter une même carte sur deux comptes."""
-    cle = (get_settings().jwt_secret + "|cnib-numero").encode()
-    return hmac.new(cle, normaliser_numero(numero).encode(), hashlib.sha256).hexdigest()
+    return empreintes_numero(numero)[0]
 
 
 def masquer_numero(numero: str) -> str:

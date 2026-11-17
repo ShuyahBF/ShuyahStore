@@ -37,6 +37,8 @@ services:
       # --- Envoi des e-mails de vérification (SMTP). Facultatif : sans SMTP_HOST, la vérification n'est pas proposée et rien n'est bloqué. ---
       # --- WhatsApp par Liluvine (SAWALI) : code de connexion (OTP) et rapports PDF. Facultatif : sans ces deux valeurs, rien n'est bloqué. ---
       # Créer d'abord l'émetteur « shuyahstore » dans SAWALI, qui fournit l'adresse du service et la clé HMAC.
+      - key: CNIB_CLE            # SECRET (lot 25) : clé DÉDIÉE au chiffrement des CNIB (16 caractères minimum, ≠ JWT_SECRET) ; à générer puis à ne jamais perdre
+        sync: false
       - key: ANTHROPIC_API_KEY   # SECRET (lot 24) : lecture automatique de la CNIB à l'inscription ; sans clé, toute CNIB passe en revue humaine
         sync: false
       - key: LILUVINE_WA_URL    # ex. https://api.sawalismartsystems.com/api/webhook/liluvine-send
