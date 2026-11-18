@@ -182,6 +182,26 @@ async def a_verifier(request: Request, admin: dict = Depends(admin_cnib), statut
     return {"cnib": [{k: v for k, v in f.items() if k not in ("fichier_id", "empreinte_numero")} | {"compte": comptes.get(f["user_id"], {})} for f in fiches]}
 
 
+@router.post("/admin/cnib/charger")
+async def charger_depuis_fichier(request: Request, email: str = Form(...), cnib_photo: UploadFile = File(...), revue_manuelle: bool = Form(False),
+                                 admin: dict = Depends(admin_cnib)):
+    """Lot 25 — l'ADMINISTRATEUR SEUL (avec la double authentification, comme pour toute CNIB) charge une CNIB à partir d'un FICHIER pour le compte `email`
+    (compte existant : ex. compte créé avant l'exigence, ou personne qui n'a pas pu photographier sa carte). La chaîne de contrôle est LA MÊME que pour l'utilisateur
+    (examen de l'image, lecture, décision, unicité du numéro) : aucun contournement ; un doute envoie la fiche à la revue. L'action est journalisée (qui, quel compte,
+    d'où), jamais le contenu ni le numéro."""
+    from routes.auth import normaliser_email
+    compte = await db.users.find_one({"email": normaliser_email(email)}, SANS_ID)
+    if not compte:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucun compte avec cette adresse e-mail.")
+    octets = await cnib_photo.read(cnib.TAILLE_MAX_OCTETS + 1)
+    jpeg, resultat = await analyser(octets, compte["nom"], adresse_ip(request), compte["id"], revue_manuelle)
+    fiche = await ranger(compte["id"], jpeg, resultat, revue_manuelle)
+    await db.cnib.update_one({"id": fiche["id"]}, {"$set": {"chargee_par_admin": admin["email"]}})
+    await journaliser(fiche["id"], admin, "chargee_par_admin", request, f"compte {compte['id']}")
+    return {"statut": fiche["statut"], "raisons": fiche["raisons"], "expire_le": fiche["date_expiration"], "expire_bientot": fiche["expire_bientot"],
+            "compte": {"nom": compte["nom"], "email": compte["email"]}}
+
+
 @router.get("/admin/cnib/{cnib_id}/image")
 async def image(cnib_id: str, request: Request, admin: dict = Depends(admin_cnib)):
     """Photo de la CNIB, DÉCHIFFRÉE à la demande : jamais mise en cache, jamais publique."""

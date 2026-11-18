@@ -167,6 +167,31 @@ def test_doute_puis_revue_administrateur(client, cnib_active, admin):
     assert client.get("/api/moi/cnib", headers=jeton).json()["statut"] == "verifiee"
 
 
+def test_admin_charge_une_cnib_depuis_un_fichier(client, cnib_active, admin):
+    """Lot 25 : l'administrateur charge une CNIB pour un compte existant (même chaîne de contrôle) ; le journal le garde ; un simple compte ne peut pas."""
+    cnib_active["lecture"] = lecture(numero="B90000001")               # numéro propre à ce test (une même CNIB n'ouvre pas deux comptes)
+    r = inscrire(client)
+    assert r.status_code == 201, r.text
+    jeton = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    email = f"cnib.test{_n['i']}@gmail.com"
+    # un simple compte n'a pas accès à cette fonction
+    assert client.post("/api/admin/cnib/charger", headers=jeton, data={"email": email}, files={"cnib_photo": ("c.jpg", photo(), "image/jpeg")}).status_code in (401, 403)
+    # compte inconnu
+    assert client.post("/api/admin/cnib/charger", headers=admin, data={"email": "inconnu@gmail.com"}, files={"cnib_photo": ("c.jpg", photo(), "image/jpeg")}).status_code == 404
+    # carte douteuse : la fiche va à la revue (aucun contournement par l'administrateur)
+    cnib_active["lecture"] = lecture(numero="B77665544", indices_falsification=True)
+    ok = client.post("/api/admin/cnib/charger", headers=admin, data={"email": email}, files={"cnib_photo": ("c.jpg", photo(), "image/jpeg")})
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["statut"] == "a_verifier" and ok.json()["compte"]["email"] == email and "B77665544" not in ok.text
+    assert client.get("/api/moi/cnib", headers=jeton).json()["statut"] == "a_verifier"
+    # le journal garde l'action (qui, quel compte), jamais le numéro
+    acces = client.get("/api/admin/cnib/journal", headers=admin).json()["acces"]
+    assert any(a["action"] == "chargee_par_admin" for a in acces) and "B77665544" not in str(acces)
+    # une carte refusée par la chaîne reste refusée (pas de contournement)
+    cnib_active["lecture"] = lecture(date_expiration="2020-01-01")
+    assert client.post("/api/admin/cnib/charger", headers=admin, data={"email": email}, files={"cnib_photo": ("c.jpg", photo(), "image/jpeg")}).status_code == 422
+
+
 def test_refus_admin_supprime_la_photo(client, cnib_active, admin):
     cnib_active["lecture"] = lecture(numero="B11002200", quatre_coins_visibles=False)
     r = inscrire(client)
