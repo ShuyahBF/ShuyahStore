@@ -5,17 +5,23 @@ import { Etoiles, IconeApp, Patientez, Recommandee } from "@/components/Communs"
 import { useToast } from "@/components/Toast";
 import { apiClient, messageErreur } from "@/lib/api";
 import { dateFr, ilYa, nombre, taille } from "@/lib/format";
+import { etatApp } from "@/lib/installations";
+import { dansApplication, etatPaquets } from "@/lib/pontAndroid";
 
 // Tris proposés (liste finie → liste déroulante, règle 10)
 const TRIS = [["recommandees", "Recommandées d'abord"], ["recentes", "Les plus récentes"], ["telechargements", "Les plus téléchargées"], ["note", "Les mieux notées"], ["nom", "Par nom (A → Z)"]];
 
 /** Carte d'une application du catalogue : icône, nom, développeur, note, taille (le volume de données a un coût), téléchargements. */
-function CarteApp({ app }) {
+function CarteApp({ app, installee }) {
+  // Lot 10 (application Android) : repère « installée » sur le téléphone, et « mise à jour disponible » si une version plus récente est publiée
+  const etat = installee === undefined ? "absente" : etatApp(installee, app.version_courante);
   return (
     <Link to={`/app/${app.paquet}`} className="card flex gap-3 transition hover:border-ocre hover:shadow-md" data-testid="carte-app">
       <IconeApp app={app} />
       <div className="min-w-0 flex-1">
         <p className="truncate font-display font-semibold text-ink">{app.nom}</p>
+        {etat === "mise_a_jour" && <p className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-900" data-testid="repere-mise-a-jour"><RefreshCw className="h-3 w-3" aria-hidden="true" />Installée · mise à jour disponible</p>}
+        {etat === "a_jour" && <p className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-900" data-testid="repere-a-jour"><ShieldCheck className="h-3 w-3" aria-hidden="true" />Installée · à jour</p>}
         <p className="flex items-center gap-1 truncate text-sm font-semibold text-primary" data-testid="developpeur" title="Développeur"><UserRound className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="truncate">{app.nom_developpeur}</span></p>
         <p className="truncate text-xs text-gray-600">{app.categorie_libelle}</p>
         {app.resume && <p className="mt-1 line-clamp-2 text-sm text-gray-700">{app.resume}</p>}
@@ -39,6 +45,7 @@ export default function Accueil() {
   const [filtres, setFiltres] = useState({ q: "", categorie: "", tri: "recommandees", page: 1 });
   const [saisie, setSaisie] = useState("");
   const [donnees, setDonnees] = useState(null);
+  const [installees, setInstallees] = useState({});          // { paquet: version installée sur le téléphone } (application Android seulement)
 
   useEffect(() => { apiClient.get("/referentiel").then((r) => setCategories(r.data.categories)).catch(() => {}); }, []);
   const charger = useCallback(async (f, annonce = false) => {
@@ -50,6 +57,7 @@ export default function Accueil() {
     } catch (err) { toast.erreur(messageErreur(err, "Catalogue indisponible")); setDonnees((d) => d || { apps: [], total: 0, page: 1, par_page: 24 }); }
   }, [toast]);
   useEffect(() => { charger(filtres); }, [filtres, charger]);
+  useEffect(() => { if (dansApplication() && donnees?.apps) setInstallees(etatPaquets(donnees.apps.map((a) => a.paquet))); }, [donnees]);
 
   const changer = (plus) => setFiltres((f) => ({ ...f, page: 1, ...plus }));
   const pages = donnees ? Math.max(1, Math.ceil(donnees.total / donnees.par_page)) : 1;
@@ -88,7 +96,7 @@ export default function Accueil() {
       ) : (
         <>
           <p className="text-sm text-gray-600" data-testid="total">{donnees.total} application{donnees.total > 1 ? "s" : ""}</p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{donnees.apps.map((a) => <CarteApp key={a.id} app={a} />)}</div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{donnees.apps.map((a) => <CarteApp key={a.id} app={a} installee={installees[a.paquet]} />)}</div>
           {pages > 1 && (
             <div className="flex items-center justify-center gap-3 text-sm">
               <button type="button" className="btn-outline btn-sm" disabled={filtres.page <= 1} onClick={() => setFiltres((f) => ({ ...f, page: f.page - 1 }))}><ChevronLeft className="h-4 w-4" aria-hidden="true" />Précédent</button>

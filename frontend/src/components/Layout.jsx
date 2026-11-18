@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import NouvelleVersionBandeau from "@/components/NouvelleVersionBandeau";
+import BoutonMisesAJour from "@/components/BoutonMisesAJour";   // lot 10 : petit rond « mises à jour » (application Android)
 import { Code2, FileSearch, LayoutGrid, LogIn, LogOut, ShieldCheck, Smartphone, Store, UserRound } from "lucide-react";
 import { ExigerWhatsApp } from "@/components/NumeroWhatsApp";
 import { useAuth } from "@/context/AuthContext";
@@ -62,6 +63,7 @@ export default function Layout() {
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6"><Outlet /></main>
       <NouvelleVersionBandeau />
+      <BoutonMisesAJour />
       <ExigerWhatsApp />
       <footer className="border-t border-gray-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs text-gray-600">
