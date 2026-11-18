@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, History, IdCard, RefreshCw, ShieldAlert, ShieldCheck, XCircle } from "lucide-react";
+import { BadgeCheck, FileUp, History, IdCard, RefreshCw, ShieldAlert, ShieldCheck, X, XCircle } from "lucide-react";
 import Modal from "@/components/Modal";
 import { Patientez } from "@/components/Communs";
 import { useToast } from "@/components/Toast";
@@ -18,6 +18,25 @@ export default function RevueCnib() {
   const [occupe, setOccupe] = useState(false);
   const [secu, setSecu] = useState(null);             // état des protections (clé dédiée, double authentification de l'administrateur)
   const [journal, setJournal] = useState(null);       // journal des accès (fenêtre) ; null = fermé
+  // Lot 25 : chargement d'une CNIB à partir d'un FICHIER, pour le compte d'un utilisateur (administrateur seul, mêmes contrôles que l'inscription)
+  const [charge, setCharge] = useState(false);
+  const [chEmail, setChEmail] = useState("");
+  const [chFichier, setChFichier] = useState(null);
+  const [chManuel, setChManuel] = useState(false);
+  const [chResultat, setChResultat] = useState(null);
+  const fermerCharge = () => { setCharge(false); setChEmail(""); setChFichier(null); setChManuel(false); setChResultat(null); };
+  const envoyerCharge = async () => {
+    if (!chEmail.trim() || !chFichier) { toast.erreur("Indiquez l'adresse e-mail du compte et choisissez le fichier de la CNIB"); return; }
+    setOccupe(true);
+    toast.info("Analyse de la CNIB en cours…");
+    try {
+      const f = new FormData(); f.append("email", chEmail.trim()); f.append("cnib_photo", chFichier); f.append("revue_manuelle", chManuel ? "true" : "false");
+      const { data } = await apiClient.post("/admin/cnib/charger", f);
+      setChResultat(data);
+      toast.succes(data.statut === "verifiee" ? "CNIB vérifiée et enregistrée" : "CNIB enregistrée : à vérifier");
+      await lire();
+    } catch (err) { toast.erreur(messageErreur(err, "Chargement impossible")); } finally { setOccupe(false); }
+  };
 
   const lireSecurite = useCallback(async () => { try { setSecu((await apiClient.get("/admin/cnib/securite")).data); } catch { setSecu(null); } }, []);
   const ouvrirJournal = async () => {
@@ -51,6 +70,7 @@ export default function RevueCnib() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-lg font-bold"><IdCard className="h-5 w-5 text-primary" aria-hidden="true" />Vérification des CNIB</h2>
         <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-primary" onClick={() => setCharge(true)} data-testid="charger-cnib"><FileUp className="h-4 w-4" aria-hidden="true" />Charger une CNIB (fichier)</button>
           <button type="button" className="btn-outline" onClick={ouvrirJournal}><History className="h-4 w-4" aria-hidden="true" />Journal des accès</button>
           <button type="button" className="btn-outline" onClick={() => { lire(); lireSecurite(); }}><RefreshCw className="h-4 w-4" aria-hidden="true" />Actualiser</button>
         </div>
@@ -78,6 +98,27 @@ export default function RevueCnib() {
             </tr>))}</tbody>
         </table></div>
       )}
+      <Modal ouvert={charge} titre="Charger une CNIB depuis un fichier" onFermer={occupe ? undefined : fermerCharge}>
+        <div className="space-y-3 text-sm" data-testid="form-charger-cnib">
+          <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">Réservé à l'administrateur. La CNIB passe par les mêmes contrôles qu'à l'inscription (couleur, lisibilité, expiration, âge, numéro déjà utilisé) : en cas de doute, elle va à la vérification. L'action est journalisée.</p>
+          <label className="label" htmlFor="ch-email">Adresse e-mail du compte</label>
+          <input id="ch-email" type="email" className="input" value={chEmail} onChange={(e) => setChEmail(e.target.value)} placeholder="awa.badini@gmail.com" autoComplete="off" />
+          <label className="label" htmlFor="ch-fichier">Fichier de la CNIB (photo JPG, PNG ou WebP)</label>
+          <input id="ch-fichier" type="file" accept="image/jpeg,image/png,image/webp" className="input" onChange={(e) => setChFichier(e.target.files?.[0] || null)} />
+          <label className="flex items-start gap-2"><input type="checkbox" checked={chManuel} onChange={(e) => setChManuel(e.target.checked)} className="mt-1" />
+            <span>Photo de mauvaise qualité : demander une vérification manuelle</span></label>
+          {chResultat && (
+            <div className={`rounded p-2 ${chResultat.statut === "verifiee" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} role="status" data-testid="resultat-charger-cnib">
+              <b>{chResultat.compte?.nom}</b> : {chResultat.statut === "verifiee" ? "CNIB vérifiée" : "CNIB à vérifier"}{chResultat.expire_le ? ` · expire le ${dateFr(chResultat.expire_le)}` : ""}
+              {(chResultat.raisons || []).length > 0 && <ul className="list-disc pl-5">{chResultat.raisons.map((r) => <li key={r}>{r}</li>)}</ul>}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn-vert" disabled={occupe} onClick={envoyerCharge}><FileUp className="h-4 w-4" aria-hidden="true" />Charger et analyser</button>
+            <button type="button" className="btn-outline" disabled={occupe} onClick={fermerCharge}><X className="h-4 w-4" aria-hidden="true" />Fermer</button>
+          </div>
+        </div>
+      </Modal>
       <Modal ouvert={!!journal} titre="Journal des accès aux CNIB" onFermer={() => setJournal(null)} large>
         {journal && (journal.length === 0 ? <p className="text-sm text-gray-600">Aucun accès enregistré.</p> : (
           <table className="w-full text-xs"><thead className="text-left"><tr><th className="p-1">Quand</th><th className="p-1">Qui</th><th className="p-1">Action</th><th className="p-1">IP</th></tr></thead>
