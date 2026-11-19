@@ -17,8 +17,8 @@ android {
         versionCode = 7
         versionName = "1.6"
         // Adresses du site et de l'API de ShuyahStore. Surcharge à la compilation : -PsiteUrl=https://… -PapiUrl=https://…/api
-        buildConfigField("String", "SITE_URL", "\"${project.findProperty("siteUrl") ?: "https://shuyahstore-site.onrender.com/"}\"")
-        buildConfigField("String", "API_URL", "\"${project.findProperty("apiUrl") ?: "https://shuyahstore-api.onrender.com/api"}\"")
+        buildConfigField("String", "SITE_URL", "\"${project.findProperty("siteUrl") ?: "https://shuyahstore.store/"}\"")
+        buildConfigField("String", "API_URL", "\"${project.findProperty("apiUrl") ?: "https://api.shuyahstore.store/api"}\"")
         // Enregistrement d'écran de débogage (icône discrète) : actif par défaut ; -PsansEnregistrement=true le retire de l'application
         buildConfigField("boolean", "ENREGISTREMENT_ECRAN", if ((project.findProperty("sansEnregistrement") as String?) == "true") "false" else "true")
         // Date et heure de compilation (UTC) : « deploye_le » du signal de présence SAWALI
