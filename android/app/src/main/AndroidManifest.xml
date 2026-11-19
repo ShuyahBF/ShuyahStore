@@ -14,6 +14,9 @@
     <!-- Notification « mise à jour disponible » (Android 13 et plus : l'utilisateur est interrogé) et vérification rejouée après un redémarrage du téléphone -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Pas de mise en veille pendant un téléchargement d'application : processeur éveillé (WakeLock) et Wi-Fi actif (WifiLock) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Verrou de l'application par empreinte -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Enregistrement d'écran de débogage (icône discrète) : service au premier plan de type « capture d'écran » ; la notification utilise POST_NOTIFICATIONS ci-dessus -->
