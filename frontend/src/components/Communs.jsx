@@ -42,11 +42,11 @@ export function Recommandee() {
 }
 
 /** En-tête de colonne TRIABLE (règle 19) : ▲ croissant, ▼ décroissant, ⇅ discret sinon ; colonne triée en orange. Nombres alignés à droite. */
-export function ThTri({ cle, tri, basculer, children, droite = false }) {
+export function ThTri({ cle, tri, basculer, children, droite = false, classe = "" }) {
   const actif = tri.cle === cle;
   const Picto = !actif ? ArrowUpDown : tri.sens === "asc" ? ArrowUp : ArrowDown;
   return (
-    <th className={droite ? "text-right" : ""} aria-sort={actif ? (tri.sens === "asc" ? "ascending" : "descending") : "none"}>
+    <th className={`${droite ? "text-right" : ""} ${classe}`.trim()} aria-sort={actif ? (tri.sens === "asc" ? "ascending" : "descending") : "none"}>
       <button type="button" onClick={() => basculer(cle)} className={`inline-flex items-center gap-1 uppercase tracking-wider ${actif ? "font-bold text-ocre" : ""}`} title="Trier cette colonne">
         {children}<Picto className={`h-3.5 w-3.5 ${actif ? "" : "opacity-40"}`} aria-hidden="true" />
       </button>

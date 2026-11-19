@@ -115,8 +115,8 @@ export default function Developpeur() {
               <ThTri cle="statut" tri={tri} basculer={basculer}>État</ThTri>
               <ThTri cle="version" tri={tri} basculer={basculer}>Dernière version</ThTri>
               <ThTri cle="telechargements" tri={tri} basculer={basculer} droite>Téléch.</ThTri>
-              <ThTri cle="note_moyenne" tri={tri} basculer={basculer} droite>Note</ThTri>
-              <ThTri cle="maj_le" tri={tri} basculer={basculer}>Mise à jour</ThTri>
+              <ThTri cle="note_moyenne" tri={tri} basculer={basculer} droite classe="hidden sm:table-cell">Note</ThTri>
+              <ThTri cle="maj_le" tri={tri} basculer={basculer} classe="hidden sm:table-cell">Mise à jour</ThTri>
               <th>Actions</th>
             </tr></thead>
             <tbody>{triees.map((a) => {
@@ -127,9 +127,9 @@ export default function Developpeur() {
                   <td><Statut code={a.statut} />{a.motif_suspension && <p className="mt-1 text-xs text-red-800">{a.motif_suspension}</p>}</td>
                   <td>{derniere ? <><span className="tabular-nums">{derniere.version_nom || derniere.version_code}</span> <Statut code={derniere.statut} />{derniere.motif_refus && <p className="mt-1 text-xs text-red-800">Motif : {derniere.motif_refus}</p>}</> : "—"}</td>
                   <td className="text-right tabular-nums text-primary">{nombre(a.telechargements)}</td>
-                  <td className="text-right tabular-nums">{a.nb_avis ? `${Number(a.note_moyenne).toLocaleString("fr-FR")} (${a.nb_avis})` : "—"}</td>
-                  <td className="tabular-nums">{dateFr(a.maj_le)}</td>
-                  <td><div className="flex gap-1">
+                  <td className="hidden text-right tabular-nums sm:table-cell">{a.nb_avis ? `${Number(a.note_moyenne).toLocaleString("fr-FR")} (${a.nb_avis})` : "—"}</td>
+                  <td className="hidden tabular-nums sm:table-cell">{dateFr(a.maj_le)}</td>
+                  <td><div className="flex max-w-[8.5rem] flex-wrap gap-1 sm:max-w-none">
                     <button type="button" className="btn-outline btn-sm" title="Déposer une nouvelle version" aria-label={`Déposer une nouvelle version de ${a.nom}`} onClick={() => setDepot({ app: a })}><Upload className="h-4 w-4 text-ocre" aria-hidden="true" /></button>
                     <button type="button" className="btn-outline btn-sm" title="Modifier la fiche" aria-label={`Modifier la fiche de ${a.nom}`} onClick={() => setFiche({ ...a })}><Pencil className="h-4 w-4 text-primary" aria-hidden="true" /></button>
                     <label className="btn-outline btn-sm cursor-pointer" title="Changer l'icône (PNG, JPEG ou WebP, 512 Ko au plus)"><ImageUp className="h-4 w-4 text-purple-700" aria-hidden="true" /><span className="sr-only">Changer l'icône de {a.nom}</span>
