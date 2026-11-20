@@ -61,3 +61,15 @@ def test_statut_et_reponse_gardent_une_trace_sans_texte(client):
     import asyncio
     lignes = asyncio.run(db.retours_sawali.find({}, {"_id": 0}).to_list(50))
     assert lignes and "secret-à-ne-pas-garder" not in json.dumps(lignes)         # jamais le contenu d'un message
+
+
+def test_journal_de_diagnostic_sans_contenu(client, caplog):
+    """Le journal du serveur note le type et, pour un statut, l'état et la cause : jamais le texte d'un message ni un numéro."""
+    import logging
+    with caplog.at_level(logging.INFO, logger="uvicorn.error"):
+        envoyer(client, {"type": "statut", "statut": "failed", "id": "wamid.TEST1", "erreur": "ligne déconnectée", "to": "+22670123456", "message": "code 123456"})
+        envoyer(client, {"type": "reponse", "de": "+22670123456", "texte": "secret-à-ne-pas-journaliser"})
+    texte = caplog.text
+    assert "statut=failed" in texte and "wamid.TEST1" in texte and "ligne déconnectée" in texte
+    assert "type=reponse" in texte
+    assert "+22670123456" not in texte and "123456" not in texte.replace("22670123456", "") and "secret-à-ne-pas-journaliser" not in texte
