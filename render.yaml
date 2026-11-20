@@ -32,10 +32,12 @@ services:
       # --- Valeurs non secrètes ---
       - key: MONGO_DB_NAME
         value: shuyahstore
-      # Adresse(s) du site, séparées par des virgules (CORS et cookie de session) : nom de domaine définitif (19/11/2026), sans les anciennes adresses onrender.com.
-      # Les clés d'accès (WebAuthn) sont liées à ce domaine : celles créées sur l'ancienne adresse sont à recréer.
+      # Adresse(s) du site, séparées par des virgules (CORS et cookie de session) : nom de domaine définitif (19/11/2026) ET, PROVISOIREMENT, l'ancienne adresse du site :
+      # sans elle, l'ancienne application Android (1.7 et avant) ne peut plus joindre le serveur et son écran « Mettre à jour ShuyahStore » ne fonctionne pas (constat du 20/11/2026).
+      # À retirer quand les anciennes versions de l'application ne sont plus utilisées.
+      # Les clés d'accès (WebAuthn) sont liées au domaine définitif : celles créées sur l'ancienne adresse sont à recréer.
       - key: FRONTEND_ORIGIN
-        value: https://shuyahstore.store
+        value: https://shuyahstore.store,https://www.shuyahstore.store,https://shuyahstore-site.onrender.com
       - key: PUBLIC_SITE_URL
         value: https://shuyahstore.store
       - key: WEBAUTHN_RP_ID
