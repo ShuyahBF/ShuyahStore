@@ -117,3 +117,13 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
   d'attention, reste à faire. Jamais de secret (clé, mot de passe, chaîne de connexion) dans l'e-mail.
 - Charger l'outil Gmail avec ToolSearch AVANT de dire qu'il manque ; s'il est vraiment indisponible, le dire dans le chat et ne pas clore la livraison.
 
+
+## Pastilles de notifications dans le menu (RÈGLE PERMANENTE du propriétaire, 19/11/2026 : « pour toutes les plateformes disposant d'une sidebar »)
+- Chaque lien de menu (sidebar, barre de navigation) qui reçoit des notifications affiche une BULLE avec le NOMBRE d'éléments non encore lus / traités : Centre de Messagerie, Réservations, Alertes, Stock, Demandes… Le nombre est écrit (jamais la couleur seule), plafonné à « 99+ », avec une étiquette d'accessibilité.
+- Une seule route légère de compteurs par plateforme (filtrée par droits), relue périodiquement (30 s) et après chaque action qui change un compteur ; calculs lourds gardés quelques dizaines de secondes (règle 7). Tout NOUVEAU lien qui reçoit des notifications ajoute sa clé et sa pastille.
+- Modèle : Dialyse, `GET /notifications/compteurs` (`backend/app/notifications.py`) et `frontend/src/composants/MiseEnPage.jsx`.
+
+## Adresse de retour de SAWALI (règle 7, lot 39, propriétaire 20/11/2026)
+- `POST /api/webhooks/liluvine-retour` (`backend/routes/retours_sawali.py`), signée avec `LILUVINE_WA_HMAC` (X-Timestamp, X-Signature = HMAC-SHA256(clé, "<horodatage>.<corps brut>"), 5 minutes) ; sans clé 503, signature fausse 401.
+- `stats_du_jour` → indicateurs agrégés (applications publiées / en attente, comptes, téléchargements du jour), sans donnée personnelle, + `version` et `deploye_le` ; `desinscription` (STOP) → compte marqué `whatsapp_desinscrit` ; `statut`, `reponse` et autres types → trace minimale (`retours_sawali`), JAMAIS le contenu d'un message.
+- Dans SAWALI : émetteur « shuyahstore » → « URL de retour » = `https://api.shuyahstore.store/api/webhooks/liluvine-retour` (« URL des statistiques » vide). Tests : `backend/tests/test_retours_sawali.py`.
