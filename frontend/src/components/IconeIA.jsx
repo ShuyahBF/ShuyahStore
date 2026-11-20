@@ -16,11 +16,19 @@ function Apercu({ proposition }) {
   useEffect(() => {
     let vivant = true;
     Promise.all([composer(proposition, 144, "arrondi"), composer(proposition, 72, "rond")])
-      .then(([a, b]) => { if (vivant) setUrls([a.toDataURL("image/png"), b.toDataURL("image/png")]); }).catch(() => { if (vivant) setUrls([]); });
+      .then(([a, b]) => { if (vivant) setUrls([a.toDataURL("image/png"), b.toDataURL("image/png")]); })
+      .catch((e) => { console.warn("Aperçu d'icône impossible :", e); if (vivant) setUrls([]); });
     return () => { vivant = false; };
   }, [proposition]);
   if (!urls) return <div className="h-[72px]" aria-hidden="true" />;
-  if (!urls.length) return <p className="text-xs text-red-800">Aperçu impossible</p>;
+  // Repli sans canvas : les deux couches SVG empilées (le dessin reste visible même si le navigateur refuse de les composer)
+  if (!urls.length) {
+    const svg = (t) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(t)}`;
+    return (
+      <div className="relative mx-auto h-[72px] w-[72px] overflow-hidden rounded-2xl" title="Aperçu simplifié">
+        <img src={svg(proposition.fond)} alt="" className="absolute inset-0 h-full w-full" /><img src={svg(proposition.premier_plan)} alt="" className="absolute inset-0 h-full w-full" />
+      </div>);
+  }
   return <div className="flex items-end justify-center gap-3"><img src={urls[0]} alt="" className="h-[72px] w-[72px]" /><img src={urls[1]} alt="" className="h-9 w-9" /></div>;
 }
 

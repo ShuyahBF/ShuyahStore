@@ -106,3 +106,32 @@ def test_sans_cle_la_generation_est_indisponible(client, compte, monkeypatch):
     app_id, h = _app_deposee(client, compte, "bf.test.iaicone3")
     rep = client.post(f"/api/dev/apps/{app_id}/icone/ia", json={"style": "plat"}, headers=h)
     assert rep.status_code == 503 and "ANTHROPIC_API_KEY" in rep.json()["detail"]
+
+
+# ---------- la sortie doit être un XML VALIDE que le navigateur sait afficher (constat du propriétaire : « Aperçu impossible », 20/11/2026) ----------
+
+def _valide(svg: str):
+    import xml.dom.minidom as md
+    return md.parseString(svg)                      # lève une exception si le XML est invalide (ex. attribut en double)
+
+
+def test_la_sortie_est_un_xml_valide_avec_un_seul_xmlns():
+    for entree in (BON, DESSIN, BON.replace(' xmlns="http://www.w3.org/2000/svg"', "")):     # avec ou sans espace de noms dans la réponse de l'IA
+        s = icone_ia.assainir_svg(entree)
+        assert s and s.count("xmlns=") == 1 and "ns0" not in s
+        doc = _valide(s)
+        assert doc.documentElement.namespaceURI == "http://www.w3.org/2000/svg"
+
+
+def test_la_casse_des_attributs_svg_est_conservee():
+    s = icone_ia.assainir_svg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"><defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="108" y2="108">'
+                              '<stop offset="0" stop-color="#000"/></linearGradient></defs><rect width="108" height="108" fill="url(#g)"/></svg>')
+    assert s and 'gradientUnits="userSpaceOnUse"' in s and "gradientunits" not in s and "<linearGradient" in s
+    _valide(s)
+
+
+def test_taille_intrinseque_explicite():
+    s = icone_ia.assainir_svg(BON)
+    assert 'width="108"' in s and 'height="108"' in s and 'viewBox="0 0 108 108"' in s        # indispensable à Firefox et Safari pour dessiner l'image
+    s2 = icone_ia.assainir_svg(BON.replace('viewBox="0 0 108 108"', 'viewBox="0 0 108 108" width="999" height="1"'))
+    assert 'width="108"' in s2 and 'width="999"' not in s2                                        # une taille déclarée par l'IA n'est jamais gardée
