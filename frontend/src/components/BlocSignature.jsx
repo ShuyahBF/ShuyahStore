@@ -54,12 +54,14 @@ export default function BlocSignature({ version, app, compact = false }) {
 export function Autorisations({ liste }) {
   if (!liste?.length) return <p className="text-sm text-gray-600">Cette application ne demande aucune autorisation.</p>;
   return (
-    <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
+    // `min-w-0` sur la grille et ses cases + `[overflow-wrap:anywhere]` sur le texte : un nom technique très long (FOREGROUND_SERVICE_CONNECTED_DEVICE…) passe à la ligne
+    // au lieu de déborder sur la case voisine (constat du propriétaire sur capture, 20/11/2026).
+    <ul className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-[repeat(2,minmax(0,1fr))]">
       {liste.map((a) => (
-        <li key={a.nom} className={`flex items-start gap-2 rounded-lg px-2 py-1.5 ${a.niveau === "sensible" ? "bg-amber-50 text-amber-900" : "text-gray-700"}`} title={a.nom}>
+        <li key={a.nom} className={`flex min-w-0 items-start gap-2 rounded-lg px-2 py-1.5 ${a.niveau === "sensible" ? "bg-amber-50 text-amber-900" : "text-gray-700"}`} title={a.nom}>
           {/* Pictogramme représentatif de l'autorisation (SMS = bulle, appels = combiné, position = repère…) ; orange = sensible, bleu = normale */}
           {(() => { const Picto = pictogrammeAutorisation(a.nom); return <Picto className={`mt-0.5 h-4 w-4 shrink-0 ${a.niveau === "sensible" ? "text-amber-700" : "text-sky-700"}`} aria-hidden="true" />; })()}
-          <span>{a.libelle}{a.niveau === "sensible" && <span className="ml-1 rounded bg-amber-200 px-1 text-xs font-semibold text-amber-900">sensible</span>}</span>
+          <span className="min-w-0 [overflow-wrap:anywhere]">{a.libelle}{a.niveau === "sensible" && <span className="ml-1 inline-block whitespace-nowrap rounded bg-amber-200 px-1 text-xs font-semibold text-amber-900">sensible</span>}</span>
         </li>
       ))}
     </ul>
