@@ -7,6 +7,9 @@ services:
   # --------------------------------------------------------------------------
   - type: web
     name: shuyahstore-api
+    # Nom de domaine de l'API (à relier chez le registraire par l'enregistrement DNS que Render indique)
+    domains:
+      - api.shuyahstore.store
     runtime: python
     plan: starter            # payant : le service ne s'endort pas (un téléchargement ne doit pas attendre 50 s)
     autoDeploy: true
@@ -29,11 +32,14 @@ services:
       # --- Valeurs non secrètes ---
       - key: MONGO_DB_NAME
         value: shuyahstore
-      # Adresse(s) du site, séparées par des virgules (CORS et cookie de session). À compléter avec le nom de domaine définitif.
+      # Adresse(s) du site, séparées par des virgules (CORS et cookie de session) : nom de domaine définitif (19/11/2026), sans les anciennes adresses onrender.com.
+      # Les clés d'accès (WebAuthn) sont liées à ce domaine : celles créées sur l'ancienne adresse sont à recréer.
       - key: FRONTEND_ORIGIN
-        value: https://shuyahstore-site.onrender.com
+        value: https://shuyahstore.store
       - key: PUBLIC_SITE_URL
-        value: https://shuyahstore-site.onrender.com
+        value: https://shuyahstore.store
+      - key: WEBAUTHN_RP_ID
+        value: shuyahstore.store
       # --- Envoi des e-mails de vérification (SMTP). Facultatif : sans SMTP_HOST, la vérification n'est pas proposée et rien n'est bloqué. ---
       # --- WhatsApp par Liluvine (SAWALI) : code de connexion (OTP) et rapports PDF. Facultatif : sans ces deux valeurs, rien n'est bloqué. ---
       # Créer d'abord l'émetteur « shuyahstore » dans SAWALI, qui fournit l'adresse du service et la clé HMAC.
@@ -67,6 +73,9 @@ services:
   # --------------------------------------------------------------------------
   - type: web
     name: shuyahstore-site
+    domains:
+      - shuyahstore.store
+      - www.shuyahstore.store
     runtime: static
     autoDeploy: true
     rootDir: frontend
@@ -75,7 +84,7 @@ services:
     envVars:
       # Adresse de l'API : à corriger si Render ajoute un suffixe au nom du service (ex. shuyahstore-api-ab12.onrender.com)
       - key: VITE_API_BASE_URL
-        value: https://shuyahstore-api.onrender.com/api
+        value: https://api.shuyahstore.store/api
     # Toutes les adresses du site (ex. /app/com.exemple) renvoient la page unique de l'application
     routes:
       - type: rewrite
