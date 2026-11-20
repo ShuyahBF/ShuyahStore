@@ -33,9 +33,16 @@ from db import db
 from outils import iso
 
 log = logging.getLogger("shuyahstore.retours")
+# Journal VISIBLE dans Render : le logger « uvicorn.error » est celui dont le niveau INFO est affiché (un logger ordinaire est muet à ce niveau)
+journal_serveur = logging.getLogger("uvicorn.error")
 router = APIRouter()
 
 VALIDITE_SECONDES = 300          # un retour signé n'est valable que 5 minutes (contre le rejeu)
+
+
+def _court(valeur, taille: int) -> str:
+    """Texte court et sûr pour le journal : caractères de contrôle retirés, longueur bornée (jamais le contenu d'un message)."""
+    return "".join(c for c in str(valeur or "") if c.isprintable())[:taille]
 
 
 def verifier_signature(brut: bytes, horodatage: str, signature: str) -> dict:
@@ -74,7 +81,14 @@ async def stats_du_jour() -> dict:
 async def retour_sawali(request: Request):
     """Adresse de retour signée de SAWALI (voir l'en-tête du module)."""
     corps = verifier_signature(await request.body(), request.headers.get("x-timestamp") or "", request.headers.get("x-signature") or "")
-    genre = str(corps.get("type") or "")[:40]
+    genre = _court(corps.get("type"), 40)
+    # JOURNAL DE DIAGNOSTIC (demande du propriétaire, 20/11/2026) : le TYPE du retour et, pour un statut de remise, l'état et l'éventuelle cause.
+    # Jamais le texte d'un message, jamais un numéro : seulement de quoi comprendre pourquoi un code WhatsApp n'arrive pas.
+    if genre == "statut":
+        journal_serveur.info("Retour SAWALI : statut=%s message=%s cause=%s", _court(corps.get("statut"), 20), _court(corps.get("id") or corps.get("message_id"), 40),
+                             _court(corps.get("erreur") or corps.get("error") or corps.get("raison") or corps.get("motif"), 80) or "-")
+    else:
+        journal_serveur.info("Retour SAWALI : type=%s", genre or "-")
     if genre == "stats_du_jour":
         return await stats_du_jour()
     if genre == "desinscription":
@@ -85,6 +99,7 @@ async def retour_sawali(request: Request):
         # statut, réponse et autres types : TRACE MINIMALE (type, date, statut éventuel), jamais le contenu d'un message
         trace = {"type": genre, "recu_le": iso()}
         if genre == "statut":
-            trace["statut"] = str(corps.get("statut") or "")[:20]
+            trace["statut"] = _court(corps.get("statut"), 20)
+            trace["message_id"] = _court(corps.get("id") or corps.get("message_id"), 40)
         await db.retours_sawali.insert_one(trace)
     return {"ok": True}

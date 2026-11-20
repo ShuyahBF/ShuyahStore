@@ -127,3 +127,6 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
 - `POST /api/webhooks/liluvine-retour` (`backend/routes/retours_sawali.py`), signée avec `LILUVINE_WA_HMAC` (X-Timestamp, X-Signature = HMAC-SHA256(clé, "<horodatage>.<corps brut>"), 5 minutes) ; sans clé 503, signature fausse 401.
 - `stats_du_jour` → indicateurs agrégés (applications publiées / en attente, comptes, téléchargements du jour), sans donnée personnelle, + `version` et `deploye_le` ; `desinscription` (STOP) → compte marqué `whatsapp_desinscrit` ; `statut`, `reponse` et autres types → trace minimale (`retours_sawali`), JAMAIS le contenu d'un message.
 - Dans SAWALI : émetteur « shuyahstore » → « URL de retour » = `https://api.shuyahstore.store/api/webhooks/liluvine-retour` (« URL des statistiques » vide). Tests : `backend/tests/test_retours_sawali.py`.
+
+## Journal de diagnostic des retours de SAWALI (lot 40, propriétaire 20/11/2026)
+- `POST /api/webhooks/liluvine-retour` écrit dans le journal du serveur (visible dans Render, logger « uvicorn.error ») : pour un `statut`, l'état de remise, l'identifiant du message et la cause éventuelle ; pour les autres types, le type seul. JAMAIS le texte d'un message ni un numéro. Sert à comprendre pourquoi un code WhatsApp n'arrive pas. Test : `test_journal_de_diagnostic_sans_contenu`.
