@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     email_verifie_pour_deposer: str = "auto"
 
     # --- Clés d'accès (WebAuthn : empreinte, visage ou code du téléphone sur le SITE) ---
-    # Identifiant du site pour les clés d'accès : par défaut le nom de domaine de la première adresse du site (ex. shuyahstore-site.onrender.com).
+    # Identifiant du site pour les clés d'accès : par défaut le nom de domaine de la première adresse du site (ex. shuyahstore.store).
     # ATTENTION : une clé d'accès est liée à ce nom de domaine ; changer de domaine oblige à en recréer une.
     webauthn_rp_id: str = ""
     webauthn_rp_nom: str = "ShuyahStore"
