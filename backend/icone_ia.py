@@ -27,7 +27,11 @@ from config import get_settings
 
 log = logging.getLogger("shuyahstore.iconeia")
 
-NS = "{http://www.w3.org/2000/svg}"
+SVG_NS = "http://www.w3.org/2000/svg"
+NS = "{" + SVG_NS + "}"
+ET.register_namespace("", SVG_NS)                      # la sortie s'écrit « <svg xmlns=… » (jamais « ns0: »), avec UN SEUL xmlns
+# Attributs SVG sensibles à la casse : la liste blanche se compare en minuscules, mais on les ÉCRIT avec leur vraie casse (sinon le dégradé est ignoré par le navigateur)
+CASSE = {"viewbox": "viewBox", "gradientunits": "gradientUnits", "gradienttransform": "gradientTransform"}
 TAILLE_MAX_OCTETS = 24 * 1024                 # une couche d'icône est petite ; au-delà c'est suspect ou inutilisable
 BALISES = {"svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "defs", "lineargradient", "radialgradient", "stop"}
 ATTRIBUTS = {"viewbox", "width", "height", "xmlns", "d", "cx", "cy", "r", "rx", "ry", "x", "y", "x1", "y1", "x2", "y2", "points", "fill", "stroke", "stroke-width",
@@ -52,8 +56,11 @@ def assainir_svg(texte: str) -> Optional[str]:
     """
     if not isinstance(texte, str) or not texte.strip() or len(texte.encode("utf-8")) > TAILLE_MAX_OCTETS:
         return None
+    texte = texte.strip()
+    if re.search(r"<svg\b[^>]*\bxmlns\s*=", texte[:400], re.I) is None:             # l'IA oublie parfois l'espace de noms : sans lui un navigateur n'affiche pas l'image
+        texte = re.sub(r"<svg\b", f'<svg xmlns="{SVG_NS}"', texte, count=1, flags=re.I)
     try:
-        racine = ET.fromstring(texte.strip())
+        racine = ET.fromstring(texte)
     except ET.ParseError:
         return None
     if racine.tag.replace(NS, "").lower() != "svg":
@@ -72,19 +79,25 @@ def assainir_svg(texte: str) -> Optional[str]:
                 continue                                            # attribut inconnu : simplement retiré
             if "url(" in valeur.lower() and not URL_LOCALE.fullmatch(valeur.strip()):
                 return False
-            el.attrib[nom if nom != "viewbox" else "viewBox"] = valeur
+            el.attrib[CASSE.get(nom, nom)] = valeur
         if el.text and el.text.strip():
             return False                                            # aucun texte dans un SVG d'icône (donc aucun <style> ni <text>)
         return all(nettoyer(enfant) for enfant in list(el))
 
     if not nettoyer(racine):
         return None
+    # Taille INTRINSÈQUE explicite (108 x 108) en plus du viewBox : sans elle, Firefox et Safari ne savent pas dessiner l'image SVG dans un canvas (l'aperçu échoue).
     racine.set("viewBox", "0 0 108 108")
-    racine.set("xmlns", "http://www.w3.org/2000/svg")
-    for cle in ("width", "height"):
-        racine.attrib.pop(cle, None)
-    sortie = ET.tostring(racine, encoding="unicode").replace("ns0:", "").replace(":ns0", "")
-    return sortie if len(sortie.encode("utf-8")) <= TAILLE_MAX_OCTETS and "<script" not in sortie.lower() else None
+    racine.set("width", "108")
+    racine.set("height", "108")
+    sortie = ET.tostring(racine, encoding="unicode")
+    if len(sortie.encode("utf-8")) > TAILLE_MAX_OCTETS or "<script" in sortie.lower():
+        return None
+    try:
+        ET.fromstring(sortie)                                       # garde-fou final : ce qu'on renvoie doit être un XML VALIDE (un attribut en double rendait l'aperçu impossible)
+    except ET.ParseError:
+        return None
+    return sortie
 
 
 def construire_demande(app: dict, style: str, consigne: str) -> str:

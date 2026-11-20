@@ -7,13 +7,12 @@ export const DENSITES = [["mdpi", 1], ["hdpi", 1.5], ["xhdpi", 2], ["xxhdpi", 3]
 const CLASSIQUE_DP = 48;
 const ADAPTATIVE_DP = 108;
 
-/** Charge un SVG (texte) comme image décodée, prête à être dessinée. */
+/** Charge un SVG (texte) comme image prête à être dessinée. On attend `onload` (plus fiable que `decode()` pour un SVG, notamment dans Firefox) et on donne une taille à l'image. */
 async function chargerSvg(svg) {
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   try {
-    const img = new Image();
-    img.src = url;
-    await img.decode();
+    const img = new Image(108, 108);
+    await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error("Dessin de l'icône illisible par le navigateur")); img.src = url; });
     return img;
   } finally { URL.revokeObjectURL(url); }
 }
@@ -25,13 +24,19 @@ const octets = async (blob) => new Uint8Array(await blob.arrayBuffer());
 /** Dessine une couche SVG sur toute la toile (le SVG est en 108 x 108 : mis à l'échelle). */
 function dessiner(ctx, img, taille) { ctx.drawImage(img, 0, 0, taille, taille); }
 
+/** Carré aux coins arrondis (repli de `roundRect`, absent de certains navigateurs plus anciens). */
+function rectArrondi(ctx, t, r) {
+  if (typeof ctx.roundRect === "function") { ctx.roundRect(0, 0, t, t, r); return; }
+  ctx.moveTo(r, 0); ctx.arcTo(t, 0, t, t, r); ctx.arcTo(t, t, 0, t, r); ctx.arcTo(0, t, 0, 0, r); ctx.arcTo(0, 0, t, 0, r); ctx.closePath();
+}
+
 /** Applique un masque à la toile : « rond » (cercle) ou « arrondi » (carré aux coins arrondis, ~22 %) ; « aucun » = carré plein. */
 function masquer(c, masque) {
   if (masque === "aucun") return c;
   const t = c.width, sortie = toile(t), ctx = sortie.getContext("2d");
   ctx.beginPath();
   if (masque === "rond") ctx.arc(t / 2, t / 2, t / 2, 0, Math.PI * 2);
-  else ctx.roundRect(0, 0, t, t, t * 0.22);
+  else rectArrondi(ctx, t, t * 0.22);
   ctx.clip();
   ctx.drawImage(c, 0, 0);
   return sortie;
