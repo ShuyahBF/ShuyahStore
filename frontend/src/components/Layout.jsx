@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import AncienneAdresseBandeau from "@/components/AncienneAdresseBandeau";
 import NouvelleVersionBandeau from "@/components/NouvelleVersionBandeau";
 import BoutonMisesAJour from "@/components/BoutonMisesAJour";   // lot 10 : petit rond « mises à jour » (application Android)
 import { Code2, FileSearch, LayoutGrid, LogIn, LogOut, ShieldCheck, Smartphone, Store, UserRound } from "lucide-react";
@@ -62,7 +61,6 @@ export default function Layout() {
         </div>
         <div className="h-1 bg-gradient-to-r from-ocre via-ocre-clair to-emerald-500" aria-hidden="true" />
       </header>
-      <AncienneAdresseBandeau />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6"><Outlet /></main>
       <NouvelleVersionBandeau />
       <BoutonMisesAJour />
