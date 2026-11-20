@@ -237,7 +237,7 @@ export default function Admin() {
                   <td>{a.nom_developpeur}</td>
                   <td className="space-x-1"><Statut code={a.statut} />{a.recommandee && <Recommandee />}</td>
                   <td className="font-semibold tabular-nums text-ink">{a.version_nom || "—"}</td>
-                  <td className="tabular-nums" title={a.publie_le ? dateFr(a.publie_le) : ""}>{a.publie_le ? ilYa(a.publie_le) : "—"}</td>
+                  <td className="tabular-nums" title={a.publie_le ? dateHeure(a.publie_le) : ""}>{a.publie_le ? `${dateHeure(a.publie_le)} (${ilYa(a.publie_le)})` : "—"}</td>
                   <td className="text-right tabular-nums text-primary">{nombre(a.telechargements)}</td>
                   <td className="tabular-nums">{dateFr(a.maj_le)}</td>
                   <td><button type="button" className="btn-bleu btn-sm" onClick={() => ouvrirReglage(a)}><BadgeCheck className="h-4 w-4" aria-hidden="true" />Régler</button></td>

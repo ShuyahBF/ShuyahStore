@@ -8,7 +8,7 @@ import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient, lienApk, messageErreur } from "@/lib/api";
-import { dateFr, ilYa, nombre, taille } from "@/lib/format";
+import { dateFr, dateHeure, ilYa, nombre, taille } from "@/lib/format";
 import { dansApplication, etatPaquets } from "@/lib/pontAndroid";
 
 // FICHE d'une application : ce qu'il faut savoir AVANT de télécharger (taille, Android minimum, signature, autorisations en clair),
@@ -86,7 +86,7 @@ export default function FicheApp() {
               ? <BoutonInstaller app={app} version={courante} certificats={app.certificats_sha256} installee={installee} surChangement={() => { relireInstallation(app.paquet); charger(); }} />
               : <a href={lienApk(courante.id)} className="btn-primary px-6 py-3 text-base" data-testid="telecharger" onClick={() => toast.info("Téléchargement lancé…")}>
               <Download className="h-5 w-5" aria-hidden="true" />Télécharger ({taille(courante.taille)})</a>}
-            <span className="text-xs text-gray-600">Version {courante.version_nom || courante.version_code} · {dateFr(courante.publie_le || courante.cree_le)} ({ilYa(courante.publie_le || courante.cree_le)})</span>
+            <span className="text-xs text-gray-600">Version {courante.version_nom || courante.version_code} · {dateHeure(courante.publie_le || courante.cree_le)} ({ilYa(courante.publie_le || courante.cree_le)})</span>
             {courante.android_minimum && <span className="inline-flex items-center gap-1 text-xs text-gray-600"><Smartphone className="h-3.5 w-3.5" aria-hidden="true" />{courante.android_minimum}</span>}
           </div>
         )}
@@ -176,7 +176,7 @@ export default function FicheApp() {
             <tbody>{versions.map((v) => (
               <tr key={v.id}>
                 <td><b className="text-primary">{v.version_nom || v.version_code}</b> <span className="text-xs text-gray-500">(n° {v.version_code})</span>{v.nouveautes && <p className="whitespace-pre-line text-xs text-gray-600">{v.nouveautes}</p>}</td>
-                <td className="tabular-nums">{dateFr(v.publie_le || v.cree_le)}</td>
+                <td className="tabular-nums">{dateHeure(v.publie_le || v.cree_le)}</td>
                 <td className="text-right tabular-nums">{taille(v.taille)}</td>
                 <td>{v.fichier_disponible ? <a href={lienApk(v.id)} className="btn-outline btn-sm" title={`Télécharger la version ${v.version_nom || v.version_code}`} aria-label={`Télécharger la version ${v.version_nom || v.version_code}`}><Download className="h-4 w-4 text-ocre" aria-hidden="true" /></a> : <Statut code="archivee" />}</td>
               </tr>))}</tbody>

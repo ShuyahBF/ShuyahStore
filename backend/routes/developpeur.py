@@ -21,11 +21,13 @@ from pydantic import BaseModel, Field
 
 import apk
 import icone_apk
+import icone_ia
 import regles_qualite
 import referentiel
 import stockage
 from config import get_settings
 from db import SANS_ID, db
+from limiteur import Limiteur
 from outils import iso, sans_accents
 from routes.commun import app_ecran, certificat_debug, texte, version_ecran
 from routes.auth import verification_obligatoire_pour_deposer
@@ -228,6 +230,35 @@ async def changer_icone(app_id: str, fichier: UploadFile = File(...), user: dict
     await db.applications.update_one({"id": app_id}, {"$set": {"icone_id": icone_id, "icone_maj": iso(), "icone_source": "manuel"}})
     await stockage.supprimer(a.get("icone_id"))
     return {"ok": True}
+
+
+# Au plus 8 générations par heure et par compte : chaque génération coûte un appel au service d'IA
+_limiteur_ia = Limiteur(8, 3600.0)
+
+
+class DemandeIconeIA(BaseModel):
+    style: str = Field(default="plat", max_length=20)
+    consigne: str = Field(default="", max_length=200)
+
+
+@router.post("/apps/{app_id}/icone/ia")
+async def icone_par_ia(app_id: str, data: DemandeIconeIA, user: dict = Depends(get_current_user)):
+    """
+    Propose 3 icônes dessinées par l'IA (vectorielles, à deux couches, prêtes pour une icône Android adaptative). N'enregistre RIEN : le développeur choisit,
+    puis l'écran envoie le PNG retenu par `POST /apps/{id}/icone` (qui remplace l'icône) et peut télécharger le pack pour l'APK.
+    """
+    a = await _mon_app(app_id, user)
+    if data.style not in icone_ia.STYLES:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Style inconnu")
+    if not _limiteur_ia.autoriser(user["id"]):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Limite atteinte : 8 générations d'icônes par heure. Réessayez plus tard.")
+    try:
+        propositions = await icone_ia.generer(a, data.style, data.consigne.strip())
+    except RuntimeError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
+    if not propositions:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "L'IA n'a pas produit d'icône utilisable : relancez la génération.")
+    return {"propositions": propositions, "styles": list(icone_ia.STYLES)}
 
 
 @router.delete("/versions/{version_id}")
