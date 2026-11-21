@@ -62,3 +62,8 @@ tr[aria-selected="true"] [class*="text-"]:not(.badge):not(button):not(a) { color
     overflow: visible !important;
   }
 }
+
+/* Débordement de page sur téléphone (corrigé le 21/11/2026) : un élément en position absolue (ex. le champ fichier « sr-only » d'un bouton de tableau)
+   n'est PAS rogné par un cadre qui défile s'il n'est pas lui-même positionné : il élargissait toute la page (bande vide à droite, page déplaçable de côté).
+   Tout cadre qui défile en largeur devient donc le repère de ses éléments absolus : ils restent DANS le cadre. */
+.overflow-x-auto, .overflow-auto { position: relative; }
