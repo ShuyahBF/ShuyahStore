@@ -14,8 +14,8 @@ android {
         minSdk = 24                      // Android 7.0
         targetSdk = 35
         // versionCode : entier qui augmente à chaque version ; versionName : numéro affiché (et envoyé à SAWALI dans le signal de présence)
-        versionCode = 11
-        versionName = "1.10"
+        versionCode = 12
+        versionName = "1.11"
         // Adresses du site et de l'API de ShuyahStore. Surcharge à la compilation : -PsiteUrl=https://… -PapiUrl=https://…/api
         buildConfigField("String", "SITE_URL", "\"${project.findProperty("siteUrl") ?: "https://shuyahstore.store/"}\"")
         buildConfigField("String", "API_URL", "\"${project.findProperty("apiUrl") ?: "https://api.shuyahstore.store/api"}\"")

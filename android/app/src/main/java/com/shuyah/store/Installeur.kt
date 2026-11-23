@@ -95,6 +95,9 @@ object Installeur {
     fun installer(a: WebActivity, rappel: String, versionId: String, paquet: String, sha256: String, certificats: JSONArray,
                   progres: (Int) -> Unit, echec: (String) -> Unit) {
         Thread {
+            // Pas de mise en veille pendant le téléchargement (écran, processeur, Wi-Fi) ; rendue dans le bloc « finally » quel que soit le résultat
+            SansVeille.activer(a)
+            try {
             val dossier = File(a.cacheDir, "apk").apply { mkdirs() }
             dossier.listFiles()?.forEach { it.delete() }                       // on ne garde jamais d'anciens fichiers
             val fichier = File(dossier, "$versionId.apk")
@@ -154,6 +157,7 @@ object Installeur {
                 fichier.delete()
                 echec("Installation impossible : " + (e.message ?: "erreur réseau"))
             }
+            } finally { SansVeille.relacher(a) }
         }.start()
     }
 
