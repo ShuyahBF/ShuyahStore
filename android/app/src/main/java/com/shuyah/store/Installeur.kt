@@ -66,12 +66,16 @@ object Installeur {
      */
     private fun lireArchive(c: Context, fichier: File): Pair<String, List<String>>? {
         val pm = c.packageManager
+        // Version 1.10 : on demande LES DEUX formes de signature (nouvelle et ancienne) : sur certaines tablettes, l'une des deux revient vide (« fichier : illisible »)
         @Suppress("DEPRECATION")
-        val info = (if (Build.VERSION.SDK_INT >= 28) pm.getPackageArchiveInfo(fichier.path, PackageManager.GET_SIGNING_CERTIFICATES)
-                    else pm.getPackageArchiveInfo(fichier.path, PackageManager.GET_SIGNATURES)) ?: return null
+        val drapeaux = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES else PackageManager.GET_SIGNATURES
         @Suppress("DEPRECATION")
-        val empreintes = if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.let { empreintesDe(it.apkContentsSigners) + empreintesDe(it.signingCertificateHistory) }.orEmpty()
-                         else empreintesDe(info.signatures)
+        val info = pm.getPackageArchiveInfo(fichier.path, drapeaux) ?: return null
+        @Suppress("DEPRECATION")
+        val parAndroid = (if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.let { empreintesDe(it.apkContentsSigners) + empreintesDe(it.signingCertificateHistory) }.orEmpty() else emptyList()) +
+                         empreintesDe(info.signatures)
+        // Si Android ne rend rien : on lit le certificat nous-mêmes dans le bloc de signature du fichier (l'intégrité du fichier est contrôlée à part, et Android vérifie la signature à l'installation)
+        val empreintes = parAndroid.ifEmpty { LecteurSignature.empreintes(fichier) }
         return info.packageName to empreintes.distinct()
     }
 

@@ -3,12 +3,13 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, BarChart3, ExternalLink, ImageDown, ImageUp, KeyRound, LogIn, Pencil, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
 import BlocSignature, { Alertes, Autorisations } from "@/components/BlocSignature";
 import CleSignature from "@/components/CleSignature";
+import IconeIA from "@/components/IconeIA";
 import { IconeApp, Patientez, Statut, ThTri } from "@/components/Communs";
 import Modal from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient, messageErreur } from "@/lib/api";
-import { dateFr, nombre, taille } from "@/lib/format";
+import { dateFr, dateHeure, nombre, taille } from "@/lib/format";
 import { useTri } from "@/lib/tri";
 
 // Colonnes triables du tableau « Mes applications » (règle 19)
@@ -128,11 +129,11 @@ export default function Developpeur() {
                   <td>{derniere ? <><span className="tabular-nums">{derniere.version_nom || derniere.version_code}</span> <Statut code={derniere.statut} />{derniere.motif_refus && <p className="mt-1 text-xs text-red-800">Motif : {derniere.motif_refus}</p>}</> : "—"}</td>
                   <td className="text-right tabular-nums text-primary">{nombre(a.telechargements)}</td>
                   <td className="hidden text-right tabular-nums sm:table-cell">{a.nb_avis ? `${Number(a.note_moyenne).toLocaleString("fr-FR")} (${a.nb_avis})` : "—"}</td>
-                  <td className="hidden tabular-nums sm:table-cell">{dateFr(a.maj_le)}</td>
+                  <td className="hidden tabular-nums sm:table-cell">{dateHeure(a.maj_le)}</td>
                   <td><div className="flex max-w-[8.5rem] flex-wrap gap-1 sm:max-w-none">
                     <button type="button" className="btn-outline btn-sm" title="Déposer une nouvelle version" aria-label={`Déposer une nouvelle version de ${a.nom}`} onClick={() => setDepot({ app: a })}><Upload className="h-4 w-4 text-ocre" aria-hidden="true" /></button>
                     <button type="button" className="btn-outline btn-sm" title="Modifier la fiche" aria-label={`Modifier la fiche de ${a.nom}`} onClick={() => setFiche({ ...a })}><Pencil className="h-4 w-4 text-primary" aria-hidden="true" /></button>
-                    <label className="btn-outline btn-sm cursor-pointer" title="Changer l'icône (PNG, JPEG ou WebP, 512 Ko au plus)"><ImageUp className="h-4 w-4 text-purple-700" aria-hidden="true" /><span className="sr-only">Changer l'icône de {a.nom}</span>
+                    <label className="btn-outline btn-sm relative cursor-pointer" title="Changer l'icône (PNG, JPEG ou WebP, 512 Ko au plus)"><ImageUp className="h-4 w-4 text-purple-700" aria-hidden="true" /><span className="sr-only">Changer l'icône de {a.nom}</span>
                       <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => { changerIcone(a, e.target.files?.[0]); e.target.value = ""; }} /></label>
                     <button type="button" className="btn-outline btn-sm" title="Reprendre l'icône contenue dans l'APK" aria-label={`Reprendre l'icône de l'APK de ${a.nom}`} onClick={() => iconeDepuisApk(a)}><ImageDown className="h-4 w-4 text-sky-700" aria-hidden="true" /></button>
                     <button type="button" className="btn-outline btn-sm" title="Versions et signature" aria-label={`Versions et signature de ${a.nom}`} onClick={() => setDetail(a.id)}><KeyRound className="h-4 w-4 text-emerald-700" aria-hidden="true" /></button>
@@ -204,6 +205,8 @@ export default function Developpeur() {
               <div><label className="label" htmlFor="fi-site">Site (https://…)</label><input id="fi-site" className="input" type="url" maxLength={200} value={fiche.site || ""} onChange={(e) => setFiche({ ...fiche, site: e.target.value })} /></div>
               <div><label className="label" htmlFor="fi-contact">E-mail de contact</label><input id="fi-contact" className="input" type="email" maxLength={120} value={fiche.contact || ""} onChange={(e) => setFiche({ ...fiche, contact: e.target.value })} /></div>
             </div>
+            {/* Cadre « Icône par l'IA » : propose 3 icônes, remplace l'icône du magasin au choix, fabrique le pack pour l'APK */}
+            <IconeIA app={fiche} apres={async () => { await charger(); setFiche((f) => (f ? { ...f, a_icone: true, icone_version: String(Date.now()) } : f)); }} />
             <div className="flex gap-2">
               <button type="button" className="btn-outline" onClick={() => setFiche(null)}><X className="h-4 w-4" aria-hidden="true" />Annuler</button>
               <button type="submit" className="btn-primary flex-1" disabled={occupe}><Save className="h-4 w-4" aria-hidden="true" />{occupe ? "Patientez…" : "Enregistrer"}</button>

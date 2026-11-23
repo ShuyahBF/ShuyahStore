@@ -1,4 +1,5 @@
 import { Route, Routes } from "react-router-dom";
+import EcranAncienneAdresse from "@/components/EcranAncienneAdresse";
 import Layout from "@/components/Layout";
 import Accueil from "@/pages/Accueil";
 import Admin from "@/pages/Admin";
@@ -9,10 +10,13 @@ import Statistiques from "@/pages/Statistiques";
 import FicheApp from "@/pages/FicheApp";
 import MesApplications from "@/pages/MesApplications";
 import Verifier from "@/pages/Verifier";
+import { estAncienneAdresse } from "@/lib/adresses";
 
 // Pages du site. Le catalogue, les fiches et la vérification d'un fichier sont publics ; l'espace développeur et l'administration
 // demandent un compte (le serveur contrôle les droits à chaque appel : l'écran ne fait que guider).
 export default function App() {
+  // Ancienne adresse (*.onrender.com) : plus rien d'autre que l'écran de mise à jour (voir EcranAncienneAdresse)
+  if (estAncienneAdresse(window.location.hostname)) return <EcranAncienneAdresse />;
   return (
     <Routes>
       <Route element={<Layout />}>
