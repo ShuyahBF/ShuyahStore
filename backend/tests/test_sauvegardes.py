@@ -58,3 +58,21 @@ def test_version_precedente_gardee(client):
         assert client.put(f"/api/sauvegardes/{ident}", content=blob, headers=H(JETON)).status_code == 200
     assert client.get(f"/api/sauvegardes/{ident}", headers=H(JETON)).content == c
     assert client.get(f"/api/sauvegardes/{ident}?precedente=1", headers=H(JETON)).content == b      # « a » a été oubliée : 2 versions seulement
+
+
+def test_info_indique_l_appareil_de_la_derniere_sauvegarde(client):
+    """Lot 48 : l'identifiant ALÉATOIRE de l'installation est gardé et rendu par /info, pour prévenir qu'un AUTRE appareil a déjà sauvegardé dans ce casier."""
+    ident = hashlib.sha256(b"id-appareil").hexdigest()
+    mien, autre = "a" * 32, "b" * 32
+    assert client.put(f"/api/sauvegardes/{ident}", content=os.urandom(500), headers={**H(JETON), "X-Appareil": mien}).status_code == 200
+    assert client.get(f"/api/sauvegardes/{ident}/info", headers=H(JETON)).json()["appareil"] == mien
+    assert client.put(f"/api/sauvegardes/{ident}", content=os.urandom(500), headers={**H(JETON), "X-Appareil": autre}).status_code == 200
+    assert client.get(f"/api/sauvegardes/{ident}/info", headers=H(JETON)).json()["appareil"] == autre
+
+
+def test_appareil_absent_ou_mal_forme_ignore(client):
+    ident = hashlib.sha256(b"id-sans-appareil").hexdigest()
+    assert client.put(f"/api/sauvegardes/{ident}", content=os.urandom(500), headers=H(JETON)).status_code == 200      # ancienne application : pas d'en-tête
+    assert client.get(f"/api/sauvegardes/{ident}/info", headers=H(JETON)).json()["appareil"] is None
+    assert client.put(f"/api/sauvegardes/{ident}", content=os.urandom(500), headers={**H(JETON), "X-Appareil": "pas un hexa !"}).status_code == 200
+    assert client.get(f"/api/sauvegardes/{ident}/info", headers=H(JETON)).json()["appareil"] is None

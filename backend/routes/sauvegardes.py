@@ -30,6 +30,7 @@ TAILLE_MAX = 60 * 1024 * 1024                  # 60 Mo par sauvegarde (la base M
 VERSIONS_GARDEES = 2                           # la courante et la précédente
 NOMBRE_MAX = 3000                              # sauvegardes au total
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
+APPAREIL = re.compile(r"^[0-9a-f]{16,64}$")     # identifiant ALÉATOIRE de l'installation (lot 48) : ne désigne aucune personne
 limiteur_envois = Limiteur(6, 3600.0)          # 6 envois par heure et par adresse IP
 
 
@@ -37,6 +38,13 @@ def _verifie_id(sauvegarde_id: str) -> str:
     if not HEX64.match(sauvegarde_id or ""):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Identifiant de sauvegarde invalide")
     return sauvegarde_id
+
+
+def _appareil(request: Request) -> Optional[str]:
+    """Identifiant aléatoire de l'appareil qui envoie (en-tête facultatif X-Appareil). Il sert seulement à prévenir qu'une AUTRE installation a déjà sauvegardé dans ce casier
+    (lot 48, demande du propriétaire) ; il ne contient rien de personnel et reste ignoré s'il est mal formé."""
+    valeur = (request.headers.get("x-appareil") or "").strip().lower()
+    return valeur if APPAREIL.match(valeur) else None
 
 
 def _empreinte(jeton: str) -> str:
@@ -84,7 +92,7 @@ async def envoyer(sauvegarde_id: str, request: Request):
         nouveau = await stockage.enregistrer(f, "sauvegarde.bin", "application/octet-stream", total, sha.hexdigest())
     maj = iso()
     # Deux versions gardées (comme auRor) : la courante et la précédente, pour revenir en arrière si une sauvegarde est abîmée
-    versions = [{"fichier_id": nouveau, "taille": total, "sha256": sha.hexdigest(), "maj_le": maj}] + list((existante or {}).get("versions") or [])
+    versions = [{"fichier_id": nouveau, "taille": total, "sha256": sha.hexdigest(), "maj_le": maj, "appareil": _appareil(request)}] + list((existante or {}).get("versions") or [])
     abandonnees, versions = versions[VERSIONS_GARDEES:], versions[:VERSIONS_GARDEES]
     await db.sauvegardes.update_one({"id": sauvegarde_id}, {"$set": {"empreinte": _empreinte(jeton), "versions": versions, "maj_le": maj},
                                     "$setOnInsert": {"cree_le": maj}}, upsert=True)
@@ -97,7 +105,8 @@ async def envoyer(sauvegarde_id: str, request: Request):
 async def info(sauvegarde_id: str, request: Request):
     f = await _fiche_autorisee(sauvegarde_id, request)
     v = f["versions"][0]
-    return {"taille": v["taille"], "maj_le": v["maj_le"], "sha256": v["sha256"], "versions": len(f["versions"])}
+    # `appareil` : installation qui a fait la dernière sauvegarde (absent pour les sauvegardes d'avant le lot 48)
+    return {"taille": v["taille"], "maj_le": v["maj_le"], "sha256": v["sha256"], "versions": len(f["versions"]), "appareil": v.get("appareil")}
 
 
 @router.get("/{sauvegarde_id}", dependencies=[Depends(limiter_appels_publics)])
