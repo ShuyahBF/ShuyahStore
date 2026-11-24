@@ -73,21 +73,21 @@ export default function Accueil() {
       </section>
 
       {/* Recherche, catégorie, tri, actualisation */}
-      <form className="card grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]" onSubmit={(e) => { e.preventDefault(); changer({ q: saisie.trim() }); }}>
-        <div className="relative">
+      <form className="card grid min-w-0 gap-3 sm:grid-cols-[1fr_auto_auto_auto]" onSubmit={(e) => { e.preventDefault(); changer({ q: saisie.trim() }); }}>
+        <div className="relative min-w-0">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
           <input className="input pl-9" placeholder="Rechercher une application, un développeur…" value={saisie} onChange={(e) => setSaisie(e.target.value)} aria-label="Rechercher" maxLength={60} />
         </div>
-        <select className="input sm:w-52" value={filtres.categorie} onChange={(e) => changer({ categorie: e.target.value })} aria-label="Catégorie">
+        <select className="input w-full min-w-0 sm:w-52" value={filtres.categorie} onChange={(e) => changer({ categorie: e.target.value })} aria-label="Catégorie">
           <option value="">Toutes les catégories</option>
           {categories.map((c) => <option key={c.code} value={c.code}>{c.libelle}</option>)}
         </select>
-        <select className="input sm:w-52" value={filtres.tri} onChange={(e) => changer({ tri: e.target.value })} aria-label="Trier">
+        <select className="input w-full min-w-0 sm:w-52" value={filtres.tri} onChange={(e) => changer({ tri: e.target.value })} aria-label="Trier">
           {TRIS.map(([code, libelle]) => <option key={code} value={code}>{libelle}</option>)}
         </select>
-        <div className="flex gap-2">
-          <button type="submit" className="btn-bleu flex-1"><Search className="h-4 w-4" aria-hidden="true" />Chercher</button>
-          <button type="button" className="btn-outline" onClick={() => charger(filtres, true)} title="Relire le catalogue"><RefreshCw className="h-4 w-4" aria-hidden="true" />Actualiser</button>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <button type="submit" className="btn-bleu min-w-[8rem] flex-1"><Search className="h-4 w-4" aria-hidden="true" />Chercher</button>
+          <button type="button" className="btn-outline min-w-[8rem] flex-1 sm:flex-none" onClick={() => charger(filtres, true)} title="Relire le catalogue et les versions publiées" data-testid="actualiser-catalogue"><RefreshCw className="h-4 w-4" aria-hidden="true" />Actualiser</button>
         </div>
       </form>
 
