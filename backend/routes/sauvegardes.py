@@ -31,7 +31,10 @@ VERSIONS_GARDEES = 2                           # la courante et la précédente
 NOMBRE_MAX = 3000                              # sauvegardes au total
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 APPAREIL = re.compile(r"^[0-9a-f]{16,64}$")     # identifiant ALÉATOIRE de l'installation (lot 48) : ne désigne aucune personne
-limiteur_envois = Limiteur(6, 3600.0)          # 6 envois par heure et par adresse IP
+# Limites d'envoi (lot 51, constat du propriétaire : « Trop d'envois » sur deux téléphones du même Wi-Fi pendant un essai) : plusieurs téléphones partagent UNE adresse IP, donc la limite par
+# adresse est large ; la vraie protection contre l'écrasement répété d'UN casier est la limite par casier (le jeton est de toute façon exigé).
+limiteur_envois = Limiteur(40, 3600.0)         # 40 envois par heure et par adresse IP (famille, bureau, Wi-Fi partagé)
+limiteur_casier = Limiteur(15, 3600.0)         # 15 envois par heure et par casier
 
 
 def _verifie_id(sauvegarde_id: str) -> str:
@@ -72,7 +75,9 @@ async def envoyer(sauvegarde_id: str, request: Request):
     """Crée ou REMPLACE la sauvegarde (corps = octets chiffrés). Le remplacement exige le jeton d'origine."""
     sauvegarde_id, jeton = _verifie_id(sauvegarde_id), _jeton(request)
     if not limiteur_envois.autoriser(adresse_ip(request) or "inconnue"):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Trop d'envois : réessayez dans une heure")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Trop d'envois depuis cette adresse : réessayez dans une heure")
+    if not limiteur_casier.autoriser(sauvegarde_id):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Trop d'envois pour cette sauvegarde (15 par heure) : réessayez plus tard")
     existante = await db.sauvegardes.find_one({"id": sauvegarde_id}, SANS_ID)
     if existante and not hmac.compare_digest(existante["empreinte"], _empreinte(jeton)):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Ce code de récupération est déjà utilisé avec un autre jeton")
