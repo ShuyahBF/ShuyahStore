@@ -175,3 +175,6 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
 
 ## Limites d'envoi des sauvegardes (site 42, lot 51, propriétaire 24/11/2026 : « Trop d'envois, essayez dans 1 heure : pour un test c'est long »)
 - `routes/sauvegardes.py` : 40 envois par heure et par ADRESSE IP (plusieurs téléphones partagent un Wi-Fi) + 15 envois par heure et par CASIER (`limiteur_casier`) : la protection contre l'écrasement répété d'un casier est la limite par casier, le jeton reste exigé. Avant : 6 par heure et par adresse. Test : `test_limite_par_casier_et_large_par_adresse`.
+
+## Catalogue : « Actualiser » toujours visible (site 43, lot 52, propriétaire 24/11/2026 : « le bouton Actualiser du catalogue n'est pas visible »)
+- Sur téléphone, la rangée Chercher / Actualiser débordait de l'écran (liste déroulante trop large, boutons coupés). Les champs sont maintenant `min-w-0` / pleine largeur, et les deux boutons passent à la ligne (`flex-wrap`, 8 rem au moins chacun) : « Actualiser » (toast « Actualisation du catalogue en cours… » puis « Catalogue relu : n applications ») est toujours visible. `data-testid="actualiser-catalogue"`.
