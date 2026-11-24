@@ -4,6 +4,7 @@ import { AlertTriangle, Bell, BellOff, Copy, Download, Fingerprint, LogIn, Shiel
 import ChampMotDePasse from "@/components/ChampMotDePasse";
 import CarteCnib from "@/components/CarteCnib";
 import ClesAcces from "@/components/ClesAcces";
+import GoogleCompte from "@/components/GoogleCompte";
 import JetonsDepot from "@/components/JetonsDepot";
 import NumeroWhatsApp from "@/components/NumeroWhatsApp";
 import VerificationEmail from "@/components/VerificationEmail";
@@ -128,6 +129,8 @@ export default function Compte() {
       <CarteCnib />
 
       <ClesAcces />
+
+      <GoogleCompte />
 
       <section className="card space-y-3" data-testid="bloc-a2f">
         <h2 className="text-lg font-bold">Double authentification</h2>

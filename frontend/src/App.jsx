@@ -5,6 +5,7 @@ import Accueil from "@/pages/Accueil";
 import Admin from "@/pages/Admin";
 import Compte from "@/pages/Compte";
 import Connexion from "@/pages/Connexion";
+import ConnexionGoogle from "@/pages/ConnexionGoogle";
 import Developpeur from "@/pages/Developpeur";
 import Statistiques from "@/pages/Statistiques";
 import FicheApp from "@/pages/FicheApp";
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/app/:reference" element={<FicheApp />} />
         <Route path="/verifier" element={<Verifier />} />
         <Route path="/connexion" element={<Connexion />} />
+        <Route path="/connexion-google" element={<ConnexionGoogle />} />
         <Route path="/mes-applications" element={<MesApplications />} />
         <Route path="/compte" element={<Compte />} />
         <Route path="/developpeur" element={<Developpeur />} />

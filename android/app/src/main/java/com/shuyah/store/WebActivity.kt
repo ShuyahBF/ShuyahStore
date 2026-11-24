@@ -132,7 +132,18 @@ class WebActivity : FragmentActivity() {
     fun demanderAutorisationNotifications() { if (Build.VERSION.SDK_INT >= 33) demandeNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
 
     /** Page de ShuyahStore demandée par une notification (ex. « mes-applications »), ou la page d'accueil. */
+    /**
+     * Connexion par Google : le navigateur du téléphone rappelle « shuyahstore://google?code=… » (ou « ?erreur=… », « ?lie=1 »).
+     * On transforme ce rappel en page du site « /connexion-google?… », qui échange le code contre la session. Rend null si l'intention n'est pas ce rappel.
+     */
+    private fun urlRetourGoogle(i: Intent?): String? {
+        val d = i?.data ?: return null
+        if (d.scheme != "shuyahstore" || d.host != "google") return null
+        return adresseSite.buildUpon().path("/connexion-google").encodedQuery(d.encodedQuery ?: "").build().toString()
+    }
+
     private fun pageDemandee(i: Intent?): String {
+        urlRetourGoogle(i)?.let { return it }
         val chemin = i?.getStringExtra(MajNotifications.EXTRA_OUVRIR)?.trim('/')?.takeIf { it.matches(Regex("[a-z0-9-]+")) }
         return if (chemin != null) adresseSite.toString().trimEnd('/') + "/" + chemin else adresseSite.toString()
     }
@@ -228,6 +239,8 @@ class WebActivity : FragmentActivity() {
     // ------------------------------------------------------------------ résultat d'une installation (envoyé par Android)
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent); traiterResultatInstallation(intent)
+        setIntent(intent)
+        urlRetourGoogle(intent)?.let { web.loadUrl(it) }                                          // retour de Google (l'application était déjà ouverte)
         if (intent.hasExtra(MajNotifications.EXTRA_OUVRIR)) web.loadUrl(pageDemandee(intent))      // clic sur la notification de mise à jour
     }
 
