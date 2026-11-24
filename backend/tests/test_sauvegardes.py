@@ -8,8 +8,9 @@ import pytest
 @pytest.fixture(autouse=True)
 def _limiteur_vide():
     """La limite d'envois par heure et par adresse IP est vidée entre les tests."""
-    from routes.sauvegardes import limiteur_envois
+    from routes.sauvegardes import limiteur_casier, limiteur_envois
     limiteur_envois.vider()
+    limiteur_casier.vider()
 
 
 ID = hashlib.sha256(b"id").hexdigest()
@@ -76,3 +77,12 @@ def test_appareil_absent_ou_mal_forme_ignore(client):
     assert client.get(f"/api/sauvegardes/{ident}/info", headers=H(JETON)).json()["appareil"] is None
     assert client.put(f"/api/sauvegardes/{ident}", content=os.urandom(500), headers={**H(JETON), "X-Appareil": "pas un hexa !"}).status_code == 200
     assert client.get(f"/api/sauvegardes/{ident}/info", headers=H(JETON)).json()["appareil"] is None
+
+
+def test_limite_par_casier_et_large_par_adresse(client):
+    """Lot 51 : 15 envois par heure et par casier ; plusieurs casiers sur une même adresse ne se bloquent pas entre eux."""
+    from routes.sauvegardes import limiteur_casier, limiteur_envois
+    assert limiteur_envois.maximum >= 30 and limiteur_casier.maximum == 15
+    ok = [limiteur_casier.autoriser("a" * 64) for _ in range(16)]
+    assert ok[:15] == [True] * 15 and ok[15] is False
+    assert limiteur_casier.autoriser("b" * 64) is True
