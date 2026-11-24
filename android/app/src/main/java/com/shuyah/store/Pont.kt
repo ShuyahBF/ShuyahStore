@@ -17,6 +17,18 @@ import org.json.JSONObject
  */
 class Pont(private val activite: WebActivity) {
 
+    /**
+     * Connexion par Google : Google interdit sa page de connexion dans une fenêtre intégrée ; on l'ouvre donc dans le NAVIGATEUR du téléphone.
+     * Seules sont acceptées les adresses https de Google ou de la connexion Google de ShuyahStore (« …/api/auth/google/… ») : le site ne peut pas ouvrir n'importe quoi.
+     */
+    @JavascriptInterface
+    fun ouvrirNavigateur(adresse: String) {
+        val u = try { Uri.parse(adresse) } catch (_: Exception) { return }
+        val permis = u.scheme == "https" && (u.host == "accounts.google.com" || (u.path ?: "").startsWith("/api/auth/google/"))
+        if (!permis) return
+        activite.runOnUiThread { try { activite.startActivity(Intent(Intent.ACTION_VIEW, u)) } catch (_: Exception) {} }
+    }
+
     /** Ce que l'application sait faire, et l'identifiant (aléatoire) de cet appareil. */
     @JavascriptInterface
     fun capacites(): String = JSONObject().put("application", true).put("version", BuildConfig.VERSION_NAME).put("appareil", Installeur.appareil(activite))

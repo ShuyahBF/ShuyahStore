@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     plafond_adresse_jour: int = 20               # téléchargements comptés par adresse et par jour, toutes applications confondues
     depots_par_jour: int = 20                    # dépôts d'APK par développeur et par jour (anti-abus)
 
+    # --- Connexion par compte Google : identifiant client (non secret) et SECRET du client, saisis dans Render ; vide = fonction inactive ---
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    # Adresse de retour déclarée chez Google (facultatif : déduite de la requête si vide), ex. https://api.shuyahstore.store/api/auth/google/retour
+    google_redirect_uri: str = ""
+
     @property
     def rp_id(self) -> str:
         from urllib.parse import urlparse

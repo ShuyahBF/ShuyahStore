@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiClient, messageErreur } from "@/lib/api";
 import { EXEMPLE_EMAIL, EXEMPLE_NOM } from "@/lib/format";
 import { clesAccesDisponibles, messageCleAcces } from "@/lib/passkeys";
+import { googleDisponible, ouvrirGoogle, urlConnexionGoogle } from "@/lib/google";
 import { libelleVersion } from "@/version";
 
 // Page de connexion CENTRÉE (carte avec logo), avec l'état du serveur et la version. Le même écran sert à créer un compte.
@@ -21,6 +22,8 @@ export default function Connexion() {
   const [creation, setCreation] = useState(false);
   const [f, setF] = useState({ nom: "", email: "", mdp: "", mdp2: "", whatsapp: "" });
   const [occupe, setOccupe] = useState(false);
+  const [google, setGoogle] = useState(false);                  // le serveur est-il configuré pour Google ?
+  useEffect(() => { googleDisponible().then(setGoogle); }, []);
   const [etape2, setEtape2] = useState(false);                   // double authentification : le code est demandé après le mot de passe
   const [code, setCode] = useState(""); const [secours, setSecours] = useState(false);
   const [wa, setWa] = useState(null);                            // demande de connexion : code reçu par WhatsApp { numero_masque, validite_minutes }
@@ -133,6 +136,11 @@ export default function Connexion() {
         {!creation && <button type="button" className="btn-outline w-full" disabled={occupe} onClick={() => basculerNumero(!parNumero)} data-testid="connexion-par-numero">
           {parNumero ? <LogIn className="h-4 w-4" aria-hidden="true" /> : <MessageCircle className="h-4 w-4" aria-hidden="true" />}{parNumero ? "Revenir à l'e-mail et au mot de passe" : "Se connecter par numéro WhatsApp"}</button>}
         {!creation && !parNumero && clesAccesDisponibles() && <button type="button" className="btn-vert w-full" disabled={occupe} onClick={parCleAcces} data-testid="connexion-cle-acces"><Fingerprint className="h-4 w-4" aria-hidden="true" />Se connecter avec mon empreinte (clé d'accès)</button>}
+        {google && !creation && !parNumero && (
+          <button type="button" className="btn-outline w-full" disabled={occupe} data-testid="connexion-google-bouton"
+            onClick={() => { if (!ouvrirGoogle(urlConnexionGoogle())) toast.erreur("Mettez à jour l'application ShuyahStore pour utiliser Google."); }}>
+            <svg viewBox="0 0 48 48" className="h-4 w-4" aria-hidden="true"><path fill="#4285F4" d="M45 24.5c0-1.6-.1-2.7-.4-3.9H24v7.3h12c-.2 1.8-1.5 4.5-4.4 6.3l-.1.5 6.4 5 .4.1C43 35.9 45 30.7 45 24.5z"/><path fill="#34A853" d="M24 46c5.9 0 10.8-1.9 14.4-5.3l-6.9-5.4c-1.8 1.3-4.3 2.2-7.5 2.2-5.7 0-10.6-3.8-12.3-9.1l-.3 0-6.6 5.1-.1.2C8.6 41.6 15.7 46 24 46z"/><path fill="#FBBC05" d="M11.7 28.4c-.4-1.3-.7-2.7-.7-4.4s.3-3.1.7-4.4l-.1-.3-6.7-5.2-.2.1C3.3 17 2.5 20.4 2.5 24s.8 7 2.2 9.8l7-5.4z"/><path fill="#EA4335" d="M24 10.5c4.1 0 6.8 1.8 8.4 3.2l6.1-6C34.8 4.4 29.9 2 24 2 15.7 2 8.6 6.4 5 13.3l7.700 6c1.800-5.300 6.700-8.800 11.300-8.800z"/></svg>Se connecter avec Google</button>
+        )}
         <button type="button" className="btn-outline w-full" onClick={() => { setCreation((c) => !c); setParNumero(false); setEtape2(false); setCode(""); setWa(null); setCodeWa(""); }}>
           {creation ? <LogIn className="h-4 w-4" aria-hidden="true" /> : <UserPlus className="h-4 w-4" aria-hidden="true" />}{creation ? "J'ai déjà un compte" : "Créer un compte"}</button>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600"><EtatServeur /><span>{libelleVersion()}</span></div>
