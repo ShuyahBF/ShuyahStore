@@ -178,3 +178,7 @@ exemples « BADINI Awa » / « awa.badini@gmail.com », menus avec une majuscule
 
 ## Catalogue : « Actualiser » toujours visible (site 43, lot 52, propriétaire 24/11/2026 : « le bouton Actualiser du catalogue n'est pas visible »)
 - Sur téléphone, la rangée Chercher / Actualiser débordait de l'écran (liste déroulante trop large, boutons coupés). Les champs sont maintenant `min-w-0` / pleine largeur, et les deux boutons passent à la ligne (`flex-wrap`, 8 rem au moins chacun) : « Actualiser » (toast « Actualisation du catalogue en cours… » puis « Catalogue relu : n applications ») est toujours visible. `data-testid="actualiser-catalogue"`.
+
+## Sonde Réseau (application Android, dossier `sonde-android/`, 26/11/2026)
+- Projet Android INDÉPENDANT de l'application du magasin (`android/`) : paquet `com.shuyah.sonde`, publié dans ShuyahStore comme n'importe quelle application (dépôt par `POST /api/dev/depot`, signée avec la clé permanente). Toucher `sonde-android/` ne déclenche PAS la règle « APK ShuyahStore + 1 ».
+- Elle mesure la connexion du téléphone (ping, HTTPS, débits soutenus vers Cloudflare) et envoie les mesures à SAWALI par la CLÉ DE LA SONDE (`X-Cle-Sonde` = variable `SONDE_RESEAU_CLE` de Render, saisie par le propriétaire, jamais dans le dépôt). Voir `sonde-android/README.md`. Tests : `cd sonde-android && gradle :app:testDebugUnitTest`.

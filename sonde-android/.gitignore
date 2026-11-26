@@ -1,0 +1,7 @@
+# Fichiers produits par la compilation et réglages propres à chaque poste : jamais dans le dépôt (la clé de signature non plus)
+.gradle/
+build/
+local.properties
+*.apk
+*.p12
+*.jks

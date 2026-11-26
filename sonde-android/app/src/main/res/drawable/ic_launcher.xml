@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icône : carré bleu nuit arrondi, signal Wi-Fi orange -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp" android:height="96dp" android:viewportWidth="96" android:viewportHeight="96">
+    <path android:fillColor="#0A1E3D" android:pathData="M16,0 H80 A16,16 0 0 1 96,16 V80 A16,16 0 0 1 80,96 H16 A16,16 0 0 1 0,80 V16 A16,16 0 0 1 16,0 Z" />
+    <path android:strokeColor="#F6A35B" android:strokeWidth="6" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M22,44 A36,36 0 0 1 74,44" />
+    <path android:strokeColor="#F6A35B" android:strokeWidth="6" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M31,54 A23,23 0 0 1 65,54" />
+    <path android:strokeColor="#F6A35B" android:strokeWidth="6" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M40,64 A11,11 0 0 1 56,64" />
+    <path android:fillColor="#F6A35B" android:pathData="M48,76 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
+</vector>
