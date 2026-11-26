@@ -1,0 +1,8 @@
+<resources>
+    <!-- Thème clair intégré à Android, sans barre de titre : l'écran dessine lui-même son en-tête bleu nuit -->
+    <style name="Theme.Sonde" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#0A1E3D</item>
+        <item name="android:statusBarColor">#0A1E3D</item>
+        <item name="android:windowBackground">#F3F5F9</item>
+    </style>
+</resources>
