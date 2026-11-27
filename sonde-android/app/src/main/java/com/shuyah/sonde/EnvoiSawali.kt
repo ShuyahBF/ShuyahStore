@@ -17,7 +17,17 @@ object EnvoiSawali {
     /** Résultat : combien de mesures sont parties, et la raison de l'arrêt éventuel (null si tout est parti). */
     class Bilan(val envoyees: Int, val enAttente: Int, val alerte: Calculs.SuiteEnvoi?, val message: String)
 
+    /** Vrai pendant un envoi (celui de l'écran OU celui du service) : l'écran grise alors « Envoyer » et « Effacer ». */
+    @Volatile var enCours = false
+
+    /** Un SEUL envoi à la fois (le service et l'écran ne doivent jamais envoyer deux fois la même mesure) : le second attend la fin du premier. */
+    @Synchronized
     fun envoyerEnAttente(ctx: Context): Bilan {
+        enCours = true
+        try { return envoyerSansVerrou(ctx) } finally { enCours = false }
+    }
+
+    private fun envoyerSansVerrou(ctx: Context): Bilan {
         val toutes = Stockage.lire(ctx)
         val attente = toutes.filter { !it.envoyee }
         if (attente.isEmpty()) return Bilan(0, 0, null, "")

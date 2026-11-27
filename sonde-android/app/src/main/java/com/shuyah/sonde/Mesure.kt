@@ -18,6 +18,7 @@ data class Mesure(
     val debitDescMin: Double? = null, val debitMontMin: Double? = null,
     val methode: String = "ping",                // « ping » (vrai ping système) ou « navigateur » (repli : durées de connexion TCP)
     val connexion: String? = null,               // « wifi » ou « mobile » (réseau actif au moment de la mesure)
+    val reseau: String? = null,                  // clé du réseau précis (« wifi:192.168.1.1 », « mobile:Orange BF ») : LOCALE, jamais envoyée à SAWALI
     val envoyee: Boolean = false,
 ) {
     /** Corps JSON envoyé à SAWALI (sans `le` ni `envoyee` : c'est le serveur qui date la mesure). */
@@ -32,7 +33,7 @@ data class Mesure(
     }
 
     /** Forme gardée sur le téléphone (tout, y compris `le` et `envoyee`). */
-    fun versFichier(): JSONObject = versServeur().apply { put("le", le); put("envoyee", envoyee) }
+    fun versFichier(): JSONObject = versServeur().apply { put("le", le); put("envoyee", envoyee); reseau?.let { put("reseau", it) } }
 
     val pctPerte: Double? get() = Calculs.pctPerte(essais, perdus)
 
@@ -47,6 +48,7 @@ data class Mesure(
             debitDesc = j.dbl("debit_desc_mbps"), debitMont = j.dbl("debit_mont_mbps"),
             debitDescMin = j.dbl("debit_desc_min_mbps"), debitMontMin = j.dbl("debit_mont_min_mbps"),
             methode = j.optString("methode", "ping"), connexion = if (j.has("connexion") && !j.isNull("connexion")) j.getString("connexion") else null,
+            reseau = if (j.has("reseau") && !j.isNull("reseau")) j.getString("reseau") else null,
             envoyee = j.optBoolean("envoyee", false),
         )
     }

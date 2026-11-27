@@ -1,8 +1,6 @@
 package com.shuyah.sonde
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -29,16 +27,11 @@ object Mesureur {
 
     private val base: OkHttpClient by lazy { OkHttpClient.Builder().retryOnConnectionFailure(false).build() }
 
-    /** Réseau actif : « wifi », « mobile » ou « aucun ». */
-    fun reseau(ctx: Context): String {
-        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return "aucun") ?: return "aucun"
-        return when {
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "wifi"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "mobile"
-            else -> "aucun"
-        }
-    }
+    /** Mode du réseau actif : « wifi », « mobile » ou « aucun » (le détail — quel Wi-Fi, quel opérateur — est dans Reseau.actuelle). */
+    fun reseau(ctx: Context): String = Reseau.actuelle(ctx).mode
+
+    /** Vrai pendant qu'un cycle de mesure tourne (celui de l'écran OU celui du service) : l'écran grise alors ce qui ne peut pas se faire en même temps. */
+    @Volatile var enCours = false
 
     // ---------------------------------------------------------------------------------------------------------- latence et perte
     /** Rend la synthèse et la méthode employée (« ping » ou « navigateur » = repli TCP). */
@@ -152,10 +145,13 @@ object Mesureur {
     // Un SEUL cycle à la fois : la mesure manuelle et celle du service s'attendent l'une l'autre au lieu de se chevaucher (deux tests simultanés fausseraient les débits)
     private val verrouCycle = Any()
 
-    fun cycle(ctx: Context, poste: String, type: String, avecDebit: Boolean, etape: (String) -> Unit = {}): Mesure = synchronized(verrouCycle) { cycleSansVerrou(ctx, poste, type, avecDebit, etape) }
+    fun cycle(ctx: Context, poste: String, type: String, avecDebit: Boolean, etape: (String) -> Unit = {}): Mesure = synchronized(verrouCycle) {
+        enCours = true
+        try { cycleSansVerrou(ctx, poste, type, avecDebit, etape) } finally { enCours = false }
+    }
 
     private fun cycleSansVerrou(ctx: Context, poste: String, type: String, avecDebit: Boolean, etape: (String) -> Unit): Mesure {
-        val reseau = reseau(ctx)
+        val reseau = Reseau.actuelle(ctx)                       // réseau au DÉBUT de la mesure : c'est sous cette clé que la mesure est rangée
         etape("Mesure de la latence et des pertes (ping)…")
         val (lat, methode) = latence()
         etape("Test des connexions HTTPS…")
@@ -169,7 +165,7 @@ object Mesureur {
             le = Presence.isoUtc(Date()), poste = poste, type = type, essais = lat.essais, perdus = lat.perdus,
             latenceMoy = lat.moy, latenceMin = lat.min, latenceMax = lat.max, httpsOk = httpsOk, httpsTotal = httpsTotal,
             debitDesc = desc?.moyen, debitMont = mont?.moyen, debitDescMin = desc?.plusBas, debitMontMin = mont?.plusBas,
-            methode = methode, connexion = reseau,
+            methode = methode, connexion = reseau.mode, reseau = reseau.cle.takeIf { reseau.aInternet },
         )
     }
 }

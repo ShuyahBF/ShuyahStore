@@ -58,7 +58,7 @@ object Rapport {
     }
 
     /** Rapport complet des mesures données (de la plus ancienne à la plus récente). */
-    fun html(mesures: List<Mesure>, poste: String?, genereLe: Date = Date()): String {
+    fun html(mesures: List<Mesure>, poste: String?, genereLe: Date = Date(), reseau: String? = null): String {
         val r = resume(mesures)
         val (texteC, fondC) = when (r.niveau) {
             Calculs.Niveau.OK -> "#065f46" to "#d1fae5"; Calculs.Niveau.ATTENTION -> "#92400e" to "#fef3c7"
@@ -66,11 +66,12 @@ object Rapport {
         }
         val lignes = mesures.asReversed().take(100).joinToString("") { m ->
             val p = m.pctPerte
-            "<tr><td>${dateFr(m.le)}</td><td>${echapper(m.poste)}</td><td>${if (m.connexion == "wifi") "Wi-Fi" else if (m.connexion == "mobile") "Mobile" else "—"}</td>" +
+            "<tr><td>${dateFr(m.le)}</td><td>${echapper(m.poste)}</td><td>${echapper(Reseau.cleDe(m).let { if (it == Reseau.AUCUN) "—" else Reseau.libelleCourt(it) })}</td>" +
                 "<td class=\"d\">${Calculs.fmt(m.latenceMoy)}</td><td class=\"d${if ((p ?: 0.0) >= Calculs.SEUIL_PERTE_CRITIQUE) " rouge" else ""}\">${Calculs.fmt(p)}</td>" +
                 "<td class=\"d\">${m.httpsOk}/${m.httpsTotal}</td><td class=\"d\">${Calculs.fmt(m.debitDesc)}</td><td class=\"d\">${Calculs.fmt(m.debitMont)}</td></tr>"
         }
         val titrePoste = if (poste.isNullOrBlank()) "tous les postes" else echapper(poste)
+        val titreReseau = if (reseau.isNullOrBlank()) "toutes les connexions" else echapper(reseau)
         return """<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rapport de la sonde réseau</title>
@@ -87,7 +88,7 @@ table{width:100%;border-collapse:collapse;font-size:12px;background:#fff}th{back
 @media print{body{background:#fff}.page{padding:0}}
 </style></head><body><div class="page">
 <div class="entete"><h1>Rapport de la sonde réseau</h1>
-<p>Poste : <b>$titrePoste</b> · ${r.mesures} mesure(s) · de ${dateFr(mesures.firstOrNull()?.le)} à ${dateFr(mesures.lastOrNull()?.le)} (heure du Burkina Faso)</p>
+<p>Poste : <b>$titrePoste</b> · Réseau : <b>$titreReseau</b> · ${r.mesures} mesure(s) · de ${dateFr(mesures.firstOrNull()?.le)} à ${dateFr(mesures.lastOrNull()?.le)} (heure du Burkina Faso)</p>
 <p>Généré le ${dateFr(Presence.isoUtc(genereLe))} par l'application Sonde Réseau ${BuildConfig.VERSION_NAME}</p></div>
 <div class="verdict">${echapper(r.verdict)}</div>
 <div class="cartes">
