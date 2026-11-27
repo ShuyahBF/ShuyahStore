@@ -42,6 +42,14 @@ object Reseau {
     fun cleMobile(operateur: String?, codeReseau: String?): String =
         "$MOBILE:" + (operateur?.trim()?.takeIf { it.isNotEmpty() } ?: codeReseau?.trim()?.takeIf { it.isNotEmpty() } ?: NON_IDENTIFIE)
 
+    /**
+     * Quel réseau retenir parmi plusieurs candidats (sous VPN, Android en liste plusieurs : Wi-Fi ET mobile) ? Position du meilleur, null si aucun.
+     * Ordre : réseau dont Android a VALIDÉ l'accès à Internet d'abord, puis le Wi-Fi (ou câble) avant le mobile — c'est ce qu'Android utilise par défaut.
+     */
+    fun indexMeilleur(modes: List<String>, valides: List<Boolean>): Int? =
+        modes.indices.filter { modes[it] == WIFI || modes[it] == MOBILE }
+            .minByOrNull { (if (valides.getOrElse(it) { false }) 0 else 2) + (if (modes[it] == WIFI) 0 else 1) }
+
     /** Mode (wifi / mobile / aucun) lu dans une clé ; « aucun » pour une clé inconnue. */
     fun modeDe(cle: String?): String = when {
         cle == null -> AUCUN
@@ -112,7 +120,9 @@ object Reseau {
         if (actif != null && capsActif != null && capsActif.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)) return actif
         val candidats = cm.allNetworks.mapNotNull { n -> cm.getNetworkCapabilities(n)?.let { n to it } }
             .filter { (_, c) -> c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) && c.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) }
-        return (candidats.firstOrNull { (_, c) -> c.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) } ?: candidats.firstOrNull())?.first
+        val modes = candidats.map { (_, c) -> if (c.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || c.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) WIFI else if (c.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) MOBILE else AUCUN }
+        val valides = candidats.map { (_, c) -> c.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) }
+        return indexMeilleur(modes, valides)?.let { candidats[it].first }
     }
 
     /** Clé du réseau mobile (opérateur du forfait de données) ; aucune autorisation n'est nécessaire pour lire ce nom. */

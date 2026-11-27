@@ -20,6 +20,7 @@ import android.view.WindowManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -60,6 +61,13 @@ class MainActivity : Activity() {
     private lateinit var boutonActualiser: Button
     private lateinit var boutonEffacer: Button
     private lateinit var oeil: ImageButton
+    private lateinit var caseDebitMobile: CheckBox
+    private lateinit var spinnerPeriode: Spinner
+    private lateinit var graphiqueDirect: GraphiqueView         // courbe EN DIRECT : une sonde légère toutes les 2 secondes tant que l'écran est ouvert
+    private lateinit var graphiques: List<GraphiqueView>        // un graphique par chose mesurée (Graphiques.COURBES)
+    private var periodeChoisie = "24h"
+    private val pointsDirect = ArrayList<Graphiques.Point>()    // les 2 dernières minutes de la sonde en direct (touchée seulement par le fil de l'écran)
+    @Volatile private var generationSonde = 0                   // change à chaque démarrage / arrêt de la sonde en direct : l'ancien fil s'arrête tout seul
     private lateinit var spinnerReseau: Spinner
     private lateinit var ligneReseau: TextView          // « Connexion actuelle : Wi-Fi · routeur 192.168.1.1 » (rouge si pas d'Internet)
     private lateinit var messageActivite: TextView      // pourquoi certains boutons sont grisés
@@ -146,7 +154,13 @@ class MainActivity : Activity() {
         colonne.addView(boutonSurveillance)
         etatSurveillance = texte("", 12f, Color.parseColor("#334155")).apply { setPadding(0, dp(6), 0, 0) }
         colonne.addView(etatSurveillance)
-        colonne.addView(texte("La surveillance continue écran éteint et application fermée, grâce à une notification permanente (bouton « Arrêter » inclus). Elle s'arrête toute seule à la fin de la durée choisie. Les débits (≈ 12 Mo) ne sont mesurés qu'une fois par heure, en Wi-Fi seulement. Brancher le téléphone sur secteur est conseillé.", 11f, Color.parseColor("#64748B")))
+        colonne.addView(texte("La surveillance continue écran éteint et application fermée, grâce à une notification permanente (bouton « Arrêter » inclus). Elle s'arrête toute seule à la fin de la durée choisie. Les débits (≈ 12 Mo) ne sont mesurés qu'une fois par heure. Brancher le téléphone sur secteur est conseillé.", 11f, Color.parseColor("#64748B")))
+        // Débits en réseau mobile : réglage (oui par défaut) car chaque test consomme ≈ 12 Mo du forfait de données
+        caseDebitMobile = CheckBox(this).apply {
+            text = "Mesurer aussi les débits en réseau mobile (≈ 12 Mo, une fois par heure)"; textSize = 12f; isChecked = Stockage.debitsMobile(this@MainActivity)
+            setOnCheckedChangeListener { _, actif -> Stockage.definirDebitsMobile(this@MainActivity, actif); toast(if (actif) "Débits en réseau mobile : activés." else "Débits en réseau mobile : désactivés (Wi-Fi seulement).") }
+        }
+        colonne.addView(caseDebitMobile)
         boutonBatterie = bouton("Autoriser l'arrière-plan (économie de batterie)", android.R.drawable.ic_menu_manage, "#475569") { ouvrirReglageBatterie() }
         colonne.addView(boutonBatterie)
 
@@ -181,6 +195,25 @@ class MainActivity : Activity() {
         colonne.addView(spinnerReseau)
         synthese = texte("", 14f, Color.BLACK).apply { setPadding(0, dp(10), 0, dp(4)) }; colonne.addView(synthese)
         videoVerdict = texte("", 12f, Color.parseColor("#334155")); colonne.addView(videoVerdict)
+        // ---- graphiques : tout ce qui est mesuré, dans le temps ----
+        colonne.addView(titre("Graphiques", 15f, BLEU_NUIT).apply { setPadding(0, dp(14), 0, dp(4)) })
+        colonne.addView(texte("Le premier graphique est EN DIRECT (une sonde légère toutes les 2 secondes tant que cet écran est ouvert, rond rouge = sans réponse). Les autres montrent les mesures de la période choisie et du réseau affiché.", 11f, Color.parseColor("#64748B")))
+        val espace = { LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) } }
+        graphiqueDirect = GraphiqueView(this); colonne.addView(graphiqueDirect, espace())
+        colonne.addView(etiquette("Période des graphiques"))
+        spinnerPeriode = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, Graphiques.PERIODES.map { it.libelle })
+            setSelection(Graphiques.PERIODES.indexOfFirst { it.code == periodeChoisie }.coerceAtLeast(0))
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    val code = Graphiques.PERIODES.getOrNull(position)?.code ?: return
+                    if (code != periodeChoisie) { periodeChoisie = code; afficher() }
+                }
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+        }
+        colonne.addView(spinnerPeriode)
+        graphiques = Graphiques.COURBES.map { GraphiqueView(this).also { g -> colonne.addView(g, espace()) } }
         colonne.addView(titre("Dernières mesures", 15f, BLEU_NUIT).apply { setPadding(0, dp(14), 0, dp(4)) })
         tableau = TableLayout(this).apply { isStretchAllColumns = true }
         colonne.addView(tableau)
@@ -194,9 +227,10 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume(); Presence.signaler()
         SurveillanceService.relancerSiNecessaire(this)               // surveillance demandée mais service disparu (arrêté par Android) : on le relance
-        afficher(); appliquerEtatSurveillance(); horloge.postDelayed(rafraichir, 2_000L)
+        caseDebitMobile.isChecked = Stockage.debitsMobile(this)
+        afficher(); appliquerEtatSurveillance(); horloge.postDelayed(rafraichir, 2_000L); demarrerSondeDirecte()
     }
-    override fun onPause() { super.onPause(); enregistrerReglages(); horloge.removeCallbacks(rafraichir) }
+    override fun onPause() { super.onPause(); enregistrerReglages(); horloge.removeCallbacks(rafraichir); generationSonde += 1 }       // écran fermé : la sonde en direct s'arrête
 
     // ------------------------------------------------------------------------------------------------ outils d'interface
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
@@ -230,6 +264,7 @@ class MainActivity : Activity() {
         val e = Activite.etat(occupe, Mesureur.enCours, EnvoiSawali.enCours, Stockage.surveillanceActive(this), reseau.mode)
         regler(poste, e.reglages); regler(cle, e.reglages); regler(oeil, e.reglages)
         regler(spinnerDuree, e.listesSurveillance); regler(spinnerIntervalle, e.listesSurveillance); regler(spinnerReseau, e.listeReseau)
+        regler(caseDebitMobile, e.reglages); regler(spinnerPeriode, e.listeReseau)
         regler(boutonSurveillance, e.surveillance); regler(boutonBatterie, e.batterie)
         regler(boutonMesure, e.mesure); regler(boutonRapport, e.rapport); regler(boutonEnvoi, e.envoi)
         regler(boutonActualiser, e.actualiser); regler(boutonEffacer, e.effacer)
@@ -301,6 +336,44 @@ class MainActivity : Activity() {
         if (spinnerReseau.selectedItemPosition != position) spinnerReseau.setSelection(position)
     }
 
+    /** Redessine les graphiques de mesures pour le réseau affiché et la période choisie. */
+    private fun majGraphiques(vues: List<Mesure>) {
+        val maintenant = System.currentTimeMillis()
+        val periode = Graphiques.periode(periodeChoisie)
+        val dans = Graphiques.filtrer(vues, periode, maintenant)
+        val debut = periode.ms?.let { maintenant - it } ?: (dans.firstOrNull()?.let { Graphiques.instant(it) } ?: (maintenant - 3_600_000L))
+        val format = if ((periode.ms ?: Long.MAX_VALUE) > 24 * 3_600_000L) "dd/MM HH:mm" else "HH:mm"
+        Graphiques.COURBES.forEachIndexed { i, c ->
+            val serie = Graphiques.serie(dans, c)
+            graphiques[i].definir(c.titre, c.unite, c.couleur, serie, debut, maintenant, Graphiques.echelleMax(serie, c.plancher, c.seuil), c.seuil, format)
+        }
+    }
+
+    /** Ajoute une mesure de la sonde en direct (ms, null = sans réponse), garde 2 minutes et redessine la courbe. */
+    private fun ajouterPointDirect(t: Long, ms: Double?) {
+        pointsDirect.add(Graphiques.Point(t, ms, perdu = ms == null))
+        pointsDirect.removeAll { it.t < t - 120_000L }
+        graphiqueDirect.definir("EN DIRECT · latence (2 s)", "ms", 0xFF0891B2.toInt(), pointsDirect, t - 120_000L, t, Graphiques.echelleMax(pointsDirect, 100.0), null, "HH:mm:ss")
+    }
+
+    /**
+     * Sonde EN DIRECT : tant que l'écran est ouvert, une connexion TCP minuscule toutes les 2 secondes vers 1.1.1.1 (latence, ou « sans réponse »). Elle se met en pause pendant une
+     * mesure complète (pour ne pas fausser les débits) et quand il n'y a pas d'Internet. Chaque démarrage prend un numéro de « génération » : l'ancien fil s'arrête dès qu'il change.
+     */
+    private fun demarrerSondeDirecte() {
+        generationSonde += 1
+        val maGeneration = generationSonde
+        Thread({
+            while (maGeneration == generationSonde) {
+                if (!Mesureur.enCours && Reseau.actuelle(this).aInternet) {
+                    val ms = Mesureur.pingDirect(); val t = System.currentTimeMillis()
+                    runOnUiThread { if (maGeneration == generationSonde) ajouterPointDirect(t, ms) }
+                }
+                try { Thread.sleep(2000) } catch (e: InterruptedException) { return@Thread }
+            }
+        }, "sonde-directe").start()
+    }
+
     /** Les mesures du réseau affiché (toutes si « Toutes les connexions »), de la plus ancienne à la plus récente. */
     private fun mesuresAffichees(): List<Mesure> = Stockage.lire(this).let { l -> if (reseauChoisi == null) l else l.filter { Reseau.cleDe(it) == reseauChoisi } }
 
@@ -313,6 +386,7 @@ class MainActivity : Activity() {
         else "${r.verdict}\nPerte ${Calculs.fmt(r.perte)} % · latence ${Calculs.fmt(r.latenceMoy)} ms · ↓ ${Calculs.fmt(r.debitDescMoy)} Mb/s · ↑ ${Calculs.fmt(r.debitMontMoy)} Mb/s · HTTPS ${r.httpsOk}/${r.httpsTotal}"
         synthese.setTextColor(couleurNiveau(r.niveau)); synthese.setTypeface(synthese.typeface, Typeface.BOLD)
         videoVerdict.text = if (vues.isEmpty()) "" else "Vidéo : ${r.verdictVideo}."
+        majGraphiques(vues)
         tableau.removeAllViews()
         val tete = TableRow(this).apply { setBackgroundColor(BLEU_NUIT) }
         listOf("Heure" to false, "Perte %" to true, "Lat. ms" to true, "↓ Mb/s" to true, "↑ Mb/s" to true).forEach { (t, d) -> tete.addView(cellule(t, d, true, Color.WHITE)) }
@@ -359,10 +433,9 @@ class MainActivity : Activity() {
         if (refuser(true)) return
         enregistrerReglages(); occupe = true; appliquerEtatControles()              // les boutons incompatibles sont grisés jusqu'à la fin de la mesure
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)            // écran allumé pendant la mesure
-        // Les débits (≈ 12 Mo) ne sont mesurés qu'en Wi-Fi : en réseau mobile, on ne consomme pas le forfait de données de l'utilisateur
-        val connexion = Reseau.actuelle(this)
-        val avecDebit = connexion.mode == Reseau.WIFI
-        toast(if (avecDebit) "Mesure en cours… (environ 1 minute avec les débits)" else "Mesure en cours… (réseau mobile : sans test de débit, pour ménager votre forfait)")
+        // « Mesurer maintenant » mesure TOUJOURS les débits (≈ 12 Mo) : c'est une demande explicite de l'utilisateur, en Wi-Fi comme en réseau mobile
+        val avecDebit = true
+        toast("Mesure en cours… (environ 1 minute avec les débits)")
         val nom = Stockage.poste(this)
         Thread {
             val m = Mesureur.cycle(this, nom, "mobile", avecDebit) { e -> runOnUiThread { statut.text = e } }

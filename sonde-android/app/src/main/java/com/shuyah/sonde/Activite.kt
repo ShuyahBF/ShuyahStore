@@ -13,7 +13,7 @@ package com.shuyah.sonde
  */
 object Activite {
     class Etat(
-        val reglages: Boolean,        // nom du téléphone, clé de la sonde et œil
+        val reglages: Boolean,        // nom du téléphone, clé de la sonde, œil et case des débits en mobile
         val listesSurveillance: Boolean,   // durée et intervalle de la surveillance
         val listeReseau: Boolean,     // choix du réseau affiché
         val surveillance: Boolean,    // bouton Démarrer / Arrêter la surveillance

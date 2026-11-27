@@ -71,7 +71,7 @@ class SurveillanceService : Service() {
             suspendueDepuis = 0L
             val intervalle = Stockage.intervalleMin(this)
             val cycle = Stockage.cycleSuivant(this)
-            val m = Mesureur.cycle(this, Stockage.poste(this), "mobile", Calculs.doitMesurerDebit(cycle, intervalle) && connexion.mode == Reseau.WIFI)
+            val m = Mesureur.cycle(this, Stockage.poste(this), "mobile", Calculs.doitMesurerDebit(cycle, intervalle) && (connexion.mode == Reseau.WIFI || Stockage.debitsMobile(this)))
             Stockage.ajouter(this, m)
             Stockage.noterMesure(this, System.currentTimeMillis())
             EnvoiSawali.envoyerEnAttente(this)

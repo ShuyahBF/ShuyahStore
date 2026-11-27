@@ -62,6 +62,12 @@ object Mesureur {
         return Calculs.statsLatence(durees, perdus)
     }
 
+    /** Sonde EN DIRECT (graphique temps réel de l'écran) : UNE connexion TCP vers le port 443 (quelques octets) ; rend sa durée en ms, null si sans réponse en 2 s. */
+    fun pingDirect(): Double? {
+        val debut = System.nanoTime()
+        return try { Socket().use { it.connect(InetSocketAddress(CIBLE_PING, 443), 2000) }; (System.nanoTime() - debut) / 1e6 } catch (e: Exception) { null }
+    }
+
     // ---------------------------------------------------------------------------------------------------------- connexions HTTPS
     /** (réussies, total) : toute réponse HTTP prouve que la connexion HTTPS a abouti, quel que soit le code. */
     fun https(): Pair<Int, Int> {

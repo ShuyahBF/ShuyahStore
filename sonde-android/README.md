@@ -1,5 +1,10 @@
 # Sonde Réseau (application Android)
 
+**Version 1.3 : graphiques en temps réel, débits en mobile, détection du réseau sous VPN.**
+- **Graphiques** (`Graphiques.kt` données pures testées, `GraphiqueView.kt` dessin) : un graphique EN DIRECT (une connexion TCP minuscule toutes les 2 s vers 1.1.1.1 tant que l'écran est ouvert, 2 dernières minutes, rond rouge = sans réponse ; en pause pendant une mesure complète et sans Internet), puis un graphique par chose mesurée : latence, perte, débit ↓, débit ↑, HTTPS réussies, avec seuils d'alerte (pointillé orange), pour le réseau affiché et la période choisie (liste : 1 h, 6 h, 24 h, 7 jours, tout).
+- **Débits** : « Mesurer maintenant » mesure TOUJOURS les débits (la 1.2 les avait coupés en mobile : régression corrigée) ; la surveillance les mesure une fois par heure, en Wi-Fi et, si la case « Mesurer aussi les débits en réseau mobile (≈ 12 Mo) » est cochée (par défaut), en mobile.
+- **Réseau sous VPN** : quand Wi-Fi et mobile sont tous deux connectés, le Wi-Fi est préféré (réseau validé par Android d'abord) ; la 1.2 classait le téléphone en « Mobile » à tort.
+
 **Version 1.2 : suivi du réseau et boutons exclusifs.**
 - **Boutons** : la hauteur s'adapte au texte (plus de libellé coupé) ; quand une action tourne (la sienne OU une mesure / un envoi de la surveillance en arrière-plan), les boutons incompatibles sont grisés puis réactivés tout seuls (règle pure `Activite.etat`, testée).
 - **Sans Internet** : la surveillance est SUSPENDUE (aucune mesure, notification explicite) et reprend toute seule au retour du réseau, avec une mesure immédiate ; « Mesurer maintenant » et « Envoyer à SAWALI » sont grisés. Une coupure n'est donc plus enregistrée comme une ligne « 100 % de perte ».
@@ -21,7 +26,7 @@ Les mesures sont envoyées à SAWALI (page des Paramètres « 📶 Sonde réseau
 cd sonde-android
 # ANDROID_HOME = kit Android (plateforme 35) ; les 4 variables ANDROID_KEYSTORE_FILE / _PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD
 # désignent la clé PERMANENTE de ShuyahStore (jamais dans le dépôt). Sans elles, l'APK de publication n'est pas signé.
-gradle :app:testDebugUnitTest      # 31 tests (calculs, rapport, JSON, surveillance, réseau, état des boutons)
+gradle :app:testDebugUnitTest      # 36 tests (calculs, rapport, JSON, surveillance, réseau, état des boutons)
 gradle :app:assembleRelease        # app/build/outputs/apk/release/app-release.apk
 apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk   # doit afficher CN=ShuyahStore
 ```

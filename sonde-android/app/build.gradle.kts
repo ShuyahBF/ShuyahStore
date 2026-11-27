@@ -14,8 +14,8 @@ android {
         minSdk = 24                      // Android 7.0
         targetSdk = 35
         // versionCode : entier qui augmente à chaque version ; versionName : numéro affiché (et envoyé à SAWALI dans le signal de présence)
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
         // Date et heure de compilation (UTC) : « deploye_le » du signal de présence SAWALI
         buildConfigField("String", "DATE_BUILD", "\"${Instant.now()}\"")
     }

@@ -33,6 +33,10 @@ object Stockage {
     /** Démarre (fin = instant de fin, 0 = illimitée) ou arrête la surveillance. */
     fun definirSurveillance(ctx: Context, active: Boolean, finMs: Long = 0L) = prefs(ctx).edit().putBoolean("surv_active", active).putLong("surv_fin", if (active) finMs else 0L).apply()
 
+    /** Mesurer aussi les débits (≈ 12 Mo, une fois par heure) en réseau MOBILE ? Oui par défaut ; « Mesurer maintenant » mesure toujours les débits. */
+    fun debitsMobile(ctx: Context): Boolean = prefs(ctx).getBoolean("debits_mobile", true)
+    fun definirDebitsMobile(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean("debits_mobile", v).apply()
+
     /** Numéro du cycle : les débits ne sont mesurés qu'un cycle sur quatre. Rend le numéro courant puis l'incrémente. */
     fun cycleSuivant(ctx: Context): Int { val n = prefs(ctx).getInt("cycle", 0); prefs(ctx).edit().putInt("cycle", n + 1).apply(); return n }
 

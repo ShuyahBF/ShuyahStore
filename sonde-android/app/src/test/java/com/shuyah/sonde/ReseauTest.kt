@@ -2,6 +2,7 @@ package com.shuyah.sonde
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -51,5 +52,14 @@ class ReseauTest {
         assertFalse(m.versServeur().has("reseau"))                                  // jamais envoyée à SAWALI
         assertEquals("wifi:192.168.1.1", Mesure.depuisFichier(m.versFichier()).reseau)   // mais gardée dans le fichier local
         assertTrue(Mesure.depuisFichier(mesure("wifi").versFichier()).reseau == null)    // une ancienne mesure se relit sans clé
+    }
+
+    @Test fun sous_vpn_le_wifi_est_prefere_au_mobile_quand_les_deux_existent() {
+        // cas du constat du propriétaire : Wi-Fi ET mobile connectés sous VPN, le mobile était choisi à tort
+        assertEquals(1, Reseau.indexMeilleur(listOf(Reseau.MOBILE, Reseau.WIFI), listOf(true, true)))
+        assertEquals(0, Reseau.indexMeilleur(listOf(Reseau.MOBILE, Reseau.WIFI), listOf(true, false)))    // Wi-Fi sans Internet validé : le mobile passe devant
+        assertEquals(0, Reseau.indexMeilleur(listOf(Reseau.WIFI), listOf(false)))                          // seul candidat : on le garde, même non validé
+        assertNull(Reseau.indexMeilleur(emptyList(), emptyList()))
+        assertNull(Reseau.indexMeilleur(listOf(Reseau.AUCUN), listOf(true)))
     }
 }
