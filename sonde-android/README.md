@@ -1,5 +1,9 @@
 # Sonde Réseau (application Android)
 
+**Version 1.1 : surveillance continue.** Durée au choix (illimitée, 24 h, 72 h, 1 semaine, 2 semaines, 1 mois) et intervalle au choix (5, 15, 30 ou 60 minutes) ;
+elle tourne écran éteint et application fermée grâce à un service au premier plan (notification permanente avec bouton « Arrêter », type `specialUse` : pas de limite de 6 h sur Android 15),
+se relance après un redémarrage du téléphone, et la mesure planifiée toutes les 15 minutes sert de filet de sécurité. « Mesurer maintenant » grise tous les boutons jusqu'à la fin.
+
 Mesure la qualité de la connexion d'un téléphone et garde l'historique : latence et perte (vrai « ping » système, repli sur la durée de connexion TCP),
 connexions HTTPS, débits descendant et montant SOUTENUS (8 s) avec le débit le plus bas sur une seconde (verdict « vidéo SD / HD fluide ou saccadée »).
 Tout va vers Cloudflare et des services publics, jamais vers SAWALI. Rapport HTML autonome fabriqué sur le téléphone et partagé par le menu de partage d'Android.

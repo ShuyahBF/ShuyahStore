@@ -22,8 +22,17 @@ object Stockage {
     fun cle(ctx: Context): String = prefs(ctx).getString("cle", "") ?: ""
     fun definirCle(ctx: Context, v: String) = prefs(ctx).edit().putString("cle", v.trim()).apply()
     fun urlApi(ctx: Context): String = prefs(ctx).getString("url", null) ?: "https://api.sawalismartsystems.com/api"
-    fun automatique(ctx: Context): Boolean = prefs(ctx).getBoolean("auto", false)
-    fun definirAutomatique(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean("auto", v).apply()
+    // ---- surveillance permanente ou sur une période (lot « 1.1 ») ----
+    fun surveillanceActive(ctx: Context): Boolean = prefs(ctx).getBoolean("surv_active", false)
+    fun finSurveillanceMs(ctx: Context): Long = prefs(ctx).getLong("surv_fin", 0L)
+    fun dureeCode(ctx: Context): String = prefs(ctx).getString("surv_duree", null) ?: Surveillance.DUREES[0].code
+    fun intervalleMin(ctx: Context): Int = prefs(ctx).getInt("surv_intervalle", 15)
+    fun derniereMesureMs(ctx: Context): Long = prefs(ctx).getLong("surv_derniere", 0L)
+    fun noterMesure(ctx: Context, ms: Long) = prefs(ctx).edit().putLong("surv_derniere", ms).apply()
+    fun definirChoix(ctx: Context, dureeCode: String, intervalleMin: Int) = prefs(ctx).edit().putString("surv_duree", dureeCode).putInt("surv_intervalle", intervalleMin).apply()
+    /** Démarre (fin = instant de fin, 0 = illimitée) ou arrête la surveillance. */
+    fun definirSurveillance(ctx: Context, active: Boolean, finMs: Long = 0L) = prefs(ctx).edit().putBoolean("surv_active", active).putLong("surv_fin", if (active) finMs else 0L).apply()
+
     /** Numéro du cycle : les débits ne sont mesurés qu'un cycle sur quatre. Rend le numéro courant puis l'incrémente. */
     fun cycleSuivant(ctx: Context): Int { val n = prefs(ctx).getInt("cycle", 0); prefs(ctx).edit().putInt("cycle", n + 1).apply(); return n }
 
