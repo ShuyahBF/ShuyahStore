@@ -41,7 +41,7 @@
 
         <!-- Relance de la surveillance après un redémarrage du téléphone -->
         <receiver android:name=".BootReceiver" android:exported="true">
-            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter>
         </receiver>
 
         <!-- Partage du rapport HTML (menu de partage d'Android : e-mail, WhatsApp, Drive…) : le fichier est lu par l'application choisie grâce à cette autorisation temporaire -->

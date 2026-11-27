@@ -215,6 +215,7 @@ class MainActivity : Activity() {
         colonne.addView(spinnerPeriode)
         graphiques = Graphiques.COURBES.map { GraphiqueView(this).also { g -> colonne.addView(g, espace()) } }
         colonne.addView(titre("Dernières mesures", 15f, BLEU_NUIT).apply { setPadding(0, dp(14), 0, dp(4)) })
+        colonne.addView(texte("— dans une colonne de débit = débit non mesuré à ce passage : la surveillance le mesure une fois par heure (≈ 12 Mo), « Mesurer maintenant » le mesure toujours.", 11f, Color.parseColor("#64748B")))
         tableau = TableLayout(this).apply { isStretchAllColumns = true }
         colonne.addView(tableau)
 
@@ -444,7 +445,9 @@ class MainActivity : Activity() {
             runOnUiThread {
                 occupe = false; window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 appliquerEtatControles(); afficher(); montrerBilan(bilan)
-                statut.text = "Dernière mesure terminée à ${SimpleDateFormat("HH:mm", Locale.FRANCE).format(Date())}."
+                if (m.debitDesc != null || m.debitMont != null) Stockage.noterDebit(this, System.currentTimeMillis())
+                statut.text = "Dernière mesure terminée à ${SimpleDateFormat("HH:mm", Locale.FRANCE).format(Date())}." +
+                    if (m.debitDesc == null) " Test de débit sans résultat (${Mesureur.erreurDebit ?: "cause inconnue"})." else ""
                 toast(if (bilan.alerte == null) "Mesure enregistrée." else "Mesure enregistrée, envoi en attente.")
             }
         }.start()

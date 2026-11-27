@@ -23,8 +23,9 @@ class SondeWorker(private val ctx: Context, params: WorkerParameters) : Worker(c
         if (!Surveillance.mesureDue(Stockage.derniereMesureMs(ctx), maintenant, intervalle)) return Result.success()      // le service mesure : rien à faire
         val connexion = Reseau.actuelle(ctx)
         if (!connexion.aInternet) return Result.success()           // sans Internet : mesures suspendues (la mesure reste « due » : elle sera faite au retour du réseau)
-        val cycle = Stockage.cycleSuivant(ctx)
-        val m = Mesureur.cycle(ctx, Stockage.poste(ctx), "mobile", Calculs.doitMesurerDebit(cycle, intervalle) && (connexion.mode == Reseau.WIFI || Stockage.debitsMobile(ctx)))
+        val avecDebit = Calculs.debitDu(Stockage.dernierDebitMs(ctx), System.currentTimeMillis()) && (connexion.mode == Reseau.WIFI || Stockage.debitsMobile(ctx))
+        val m = Mesureur.cycle(ctx, Stockage.poste(ctx), "mobile", avecDebit)
+        if (m.debitDesc != null || m.debitMont != null) Stockage.noterDebit(ctx, System.currentTimeMillis())
         Stockage.ajouter(ctx, m)
         Stockage.noterMesure(ctx, System.currentTimeMillis())
         EnvoiSawali.envoyerEnAttente(ctx)           // les mesures en attente partent avec la nouvelle ; un échec n'en fait perdre aucune

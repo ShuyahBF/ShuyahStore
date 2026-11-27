@@ -30,6 +30,9 @@ object Mesureur {
     /** Mode du réseau actif : « wifi », « mobile » ou « aucun » (le détail — quel Wi-Fi, quel opérateur — est dans Reseau.actuelle). */
     fun reseau(ctx: Context): String = Reseau.actuelle(ctx).mode
 
+    /** Raison du dernier échec du test de débit descendant (null si réussi) : l'écran l'affiche pour qu'un « — » dans le tableau ne reste pas un mystère. */
+    @Volatile var erreurDebit: String? = null
+
     /** Vrai pendant qu'un cycle de mesure tourne (celui de l'écran OU celui du service) : l'écran grise alors ce qui ne peut pas se faire en même temps. */
     @Volatile var enCours = false
 
@@ -88,8 +91,10 @@ object Mesureur {
     fun debitDescendant(secondes: Int = 8): Debit? {
         val client = base.newBuilder().callTimeout((secondes + 6).toLong(), TimeUnit.SECONDS).build()
         return try {
+            erreurDebit = null
             client.newCall(Request.Builder().url("$CLOUDFLARE/__down?bytes=50000000&_=${Date().time}").header("Cache-Control", "no-cache").build()).execute().use { rep ->
-                val flux = rep.body?.byteStream() ?: return null
+                if (!rep.isSuccessful) { erreurDebit = "le serveur de test répond HTTP ${rep.code}"; return null }
+                val flux = rep.body?.byteStream() ?: run { erreurDebit = "réponse vide"; return null }
                 val tampon = ByteArray(65536)
                 val fenetres = ArrayList<Double>()
                 var octets = 0L; var octetsFenetre = 0L
@@ -110,7 +115,7 @@ object Mesureur {
                 val moyen = Calculs.debitMbps(octets, ms) ?: return null
                 Debit(moyen, fenetres.minOrNull() ?: moyen)
             }
-        } catch (e: Exception) { null }
+        } catch (e: Exception) { erreurDebit = "${e.javaClass.simpleName}${e.message?.let { " : " + it.take(60) } ?: ""}"; null }
     }
 
     /** Envoi soutenu `secondes` secondes (corps de 12 Mo écrit en blocs, abandonné au bout du temps) : débit moyen et fenêtres d'une seconde. */
