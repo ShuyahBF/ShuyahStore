@@ -10,7 +10,7 @@ import java.security.SecureRandom
  */
 object Compte {
     /** Version du texte du consentement : DOIT être égale à `CONSENTEMENT_VERSION` de backend/sonde_communaute.py (SAWALI) ; la changer redemande l'accord. */
-    const val CONSENTEMENT_VERSION = 1
+    const val CONSENTEMENT_VERSION = 2
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("sonde_compte", Context.MODE_PRIVATE)
 
@@ -39,9 +39,9 @@ object Compte {
         return id
     }
 
-    /** Partage du lieu approximatif : ACTIVÉ par défaut (décision du propriétaire), désactivable. */
-    fun partageLieu(ctx: Context): Boolean = prefs(ctx).getBoolean("partage_lieu", true)
-    fun definirPartageLieu(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean("partage_lieu", v).apply()
+    /** Partage du lieu approximatif : PERMANENT et NON MODIFIABLE (décision du propriétaire, 27/11/2026 ; consentement version 2). Toujours vrai, quoi que contienne une ancienne préférence. */
+    @Suppress("UNUSED_PARAMETER")
+    fun partageLieu(ctx: Context): Boolean = true
 
     /** Verrou par empreinte, visage ou code du téléphone à l'ouverture (désactivé par défaut). */
     fun verrou(ctx: Context): Boolean = prefs(ctx).getBoolean("verrou", false)

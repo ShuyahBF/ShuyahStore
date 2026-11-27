@@ -124,14 +124,10 @@ class MainActivity : Activity() {
         bCompte.addView(titre("Compte et confidentialité", 15f, BLEU_NUIT).apply { setPadding(0, dp(6), 0, 0) })
         ligneCompte = texte("", 13f, Color.parseColor("#047857")).apply { setTypeface(typeface, Typeface.BOLD) }
         bCompte.addView(ligneCompte)
+        // Partage du lieu approximatif : VISIBLE mais NON MODIFIABLE (cochée et grisée en permanence, décision du propriétaire du 27/11/2026)
         caseLieu = CheckBox(this).apply {
-            text = "Partager mon lieu approximatif (zone de 2 km, jamais ma position précise)"; textSize = 12f; isChecked = Compte.partageLieu(this@MainActivity)
-            setOnCheckedChangeListener { _, actif ->
-                Compte.definirPartageLieu(this@MainActivity, actif)
-                if (actif && !Localisation.autorise(this@MainActivity)) requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), 11)
-                if (actif) Localisation.rafraichir(this@MainActivity) else Localisation.oublier(this@MainActivity)
-                toast(if (actif) "Partage du lieu approximatif : activé." else "Partage du lieu : désactivé, les prochaines mesures partent sans lieu.")
-            }
+            text = "Lieu approximatif partagé en permanence (zone de 2 km, jamais ma position précise) — non modifiable"; textSize = 12f
+            isChecked = true; isEnabled = false; alpha = 0.75f
         }
         bCompte.addView(caseLieu)
         caseVerrou = CheckBox(this).apply {
@@ -291,6 +287,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (!Compte.pret(this)) { startActivity(Intent(this, AccesActivity::class.java)); finish(); return }       // déconnecté (jeton expiré) ou accord retiré
+        if (!Localisation.autorise(this)) requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), 11)       // partage permanent : la position approximative est demandée tant qu'elle manque
         Presence.signaler(); Localisation.rafraichir(this)
         if (Compte.verrou(this) && Verrou.disponible(this) && System.currentTimeMillis() > deverrouilleJusqua) { voile.visibility = View.VISIBLE; demanderDeverrouillage() }
         SurveillanceService.relancerSiNecessaire(this)               // surveillance demandée mais service disparu (arrêté par Android) : on le relance
@@ -436,7 +433,7 @@ class MainActivity : Activity() {
         regler(poste, e.reglages); regler(cle, e.reglages); regler(oeil, e.reglages)
         regler(spinnerDuree, e.listesSurveillance); regler(spinnerIntervalle, e.listesSurveillance); regler(spinnerReseau, e.listeReseau)
         regler(caseDebitMobile, e.reglages); regler(spinnerPeriode, e.listeReseau)
-        regler(caseLieu, e.reglages); regler(caseVerrou, e.reglages); regler(boutonDeconnexion, e.reglages); regler(boutonRetrait, e.reglages)
+        regler(caseVerrou, e.reglages); regler(boutonDeconnexion, e.reglages); regler(boutonRetrait, e.reglages)
         ligneCompte.text = "Connecté : ${Compte.email(this).ifBlank { "compte Google" }}"
         regler(boutonSurveillance, e.surveillance); regler(boutonBatterie, e.batterie)
         regler(boutonMesure, e.mesure); regler(boutonRapport, e.rapport); regler(boutonEnvoi, e.envoi)

@@ -51,7 +51,9 @@ class EspaceCommunTest {
     }
 
     @Test fun la_version_du_consentement_est_celle_du_serveur() {
-        assertEquals(1, Compte.CONSENTEMENT_VERSION)                                  // = CONSENTEMENT_VERSION de backend/sonde_communaute.py : à changer ensemble
+        assertEquals(2, Compte.CONSENTEMENT_VERSION)                                  // = CONSENTEMENT_VERSION de backend/sonde_communaute.py : à changer ensemble
         assertTrue(AccesActivity.TEXTE_CONSENTEMENT.contains("2 km") && AccesActivity.TEXTE_CONSENTEMENT.contains("retirer votre accord"))
+        // version 2 : le texte dit que le partage du lieu est permanent (jamais « vous pouvez le désactiver »)
+        assertTrue(AccesActivity.TEXTE_CONSENTEMENT.contains("PERMANENT") && !AccesActivity.TEXTE_CONSENTEMENT.contains("désactiver à tout moment"))
     }
 }

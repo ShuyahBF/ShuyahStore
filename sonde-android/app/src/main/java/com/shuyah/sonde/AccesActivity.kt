@@ -141,7 +141,7 @@ class AccesActivity : Activity() {
         const val TEXTE_CONSENTEMENT = "Pour utiliser Sonde Réseau, vous acceptez de partager avec SAWALI SMART SYSTEMS :\n\n" +
             "• votre adresse Gmail (compte Google), pour vous identifier ;\n" +
             "• pour chaque mesure : perte de paquets, latence, débits, connexions HTTPS, type de connexion (Wi-Fi ou réseau mobile) et nom de l'opérateur ;\n" +
-            "• votre lieu APPROXIMATIF : une zone d'environ 2 km, jamais votre position précise. Ce partage est activé par défaut ; vous pouvez le désactiver à tout moment dans l'application.\n\n" +
+            "• votre lieu APPROXIMATIF : une zone d'environ 2 km, jamais votre position précise. Ce partage est PERMANENT : il ne peut pas être désactivé dans l'application (vous gardez la possibilité de vous déconnecter ou de retirer votre accord).\n\n" +
             "SAWALI additionne les mesures par lieu, type de connexion et opérateur pour en faire des synthèses. Les mesures ne sont pas gardées une à une et ne servent pas à vous suivre. " +
             "Le nom de votre Wi-Fi et l'adresse de votre routeur ne sont jamais envoyés.\n\n" +
             "Vous pouvez à tout moment vous déconnecter ou retirer votre accord : votre fiche est alors supprimée de SAWALI. Sans votre accord, l'application ne peut pas être utilisée."
