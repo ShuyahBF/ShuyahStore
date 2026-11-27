@@ -50,6 +50,9 @@ object Reseau {
         modes.indices.filter { modes[it] == WIFI || modes[it] == MOBILE }
             .minByOrNull { (if (valides.getOrElse(it) { false }) 0 else 2) + (if (modes[it] == WIFI) 0 else 1) }
 
+    /** Nom de l'opérateur d'un réseau MOBILE (« mobile:Orange BF » → « Orange BF ») ; null pour le Wi-Fi ou un opérateur non identifié. */
+    fun operateurDe(cle: String?): String? = if (modeDe(cle) == MOBILE) cle!!.substringAfter(':', "").takeIf { it.isNotBlank() && it != NON_IDENTIFIE } else null
+
     /** Mode (wifi / mobile / aucun) lu dans une clé ; « aucun » pour une clé inconnue. */
     fun modeDe(cle: String?): String = when {
         cle == null -> AUCUN

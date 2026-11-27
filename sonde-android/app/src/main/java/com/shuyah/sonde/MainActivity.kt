@@ -21,6 +21,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.FrameLayout
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -62,6 +63,14 @@ class MainActivity : Activity() {
     private lateinit var boutonEffacer: Button
     private lateinit var oeil: ImageButton
     private lateinit var caseDebitMobile: CheckBox
+    private lateinit var ligneCompte: TextView            // « Connecté : awa.badini@gmail.com »
+    private lateinit var caseLieu: CheckBox               // partage du lieu approximatif (zone de 2 km), activé par défaut
+    private lateinit var caseVerrou: CheckBox             // verrou par empreinte / visage / code du téléphone
+    private lateinit var boutonDeconnexion: Button
+    private lateinit var boutonRetrait: Button
+    private lateinit var voile: LinearLayout              // écran « verrouillé » posé par-dessus le contenu
+    private var deverrouilleJusqua = 0L                   // jusqu'à quand l'écran reste déverrouillé après une sortie (1 minute)
+    private var verrouEnCours = false                     // une demande de déverrouillage est déjà affichée
     private lateinit var spinnerPeriode: Spinner
     private lateinit var graphiqueDirect: GraphiqueView         // courbe EN DIRECT : une sonde légère toutes les 2 secondes tant que l'écran est ouvert
     private lateinit var graphiques: List<GraphiqueView>        // un graphique par chose mesurée (Graphiques.COURBES)
@@ -94,6 +103,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(etat: Bundle?) {
         super.onCreate(etat)
+        if (!Compte.pret(this)) { startActivity(Intent(this, AccesActivity::class.java)); finish(); return }        // pas d'accord ou pas de compte : écran d'accès
         val racine = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#F3F5F9")) }
         val colonne = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(24)) }
         racine.addView(colonne)
@@ -104,6 +114,34 @@ class MainActivity : Activity() {
 
         colonne.addView(titre("Sonde Réseau", 24f, Color.WHITE).apply { setBackgroundColor(BLEU_NUIT); setPadding(dp(14), dp(14), dp(14), dp(14)) })
         colonne.addView(texte("Version ${BuildConfig.VERSION_NAME} · mesure la latence, la perte, les connexions HTTPS et les débits de CE téléphone vers Cloudflare, garde l'historique et produit un rapport HTML à partager.", 13f, Color.parseColor("#475569")).apply { setPadding(0, dp(8), 0, dp(8)) })
+
+        // ---- compte et confidentialité : Google, lieu approximatif, verrou, déconnexion, retrait de l'accord ----
+        colonne.addView(titre("Compte et confidentialité", 15f, BLEU_NUIT).apply { setPadding(0, dp(6), 0, 0) })
+        ligneCompte = texte("", 13f, Color.parseColor("#047857")).apply { setTypeface(typeface, Typeface.BOLD) }
+        colonne.addView(ligneCompte)
+        caseLieu = CheckBox(this).apply {
+            text = "Partager mon lieu approximatif (zone de 2 km, jamais ma position précise)"; textSize = 12f; isChecked = Compte.partageLieu(this@MainActivity)
+            setOnCheckedChangeListener { _, actif ->
+                Compte.definirPartageLieu(this@MainActivity, actif)
+                if (actif && !Localisation.autorise(this@MainActivity)) requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), 11)
+                if (actif) Localisation.rafraichir(this@MainActivity) else Localisation.oublier(this@MainActivity)
+                toast(if (actif) "Partage du lieu approximatif : activé." else "Partage du lieu : désactivé, les prochaines mesures partent sans lieu.")
+            }
+        }
+        colonne.addView(caseLieu)
+        caseVerrou = CheckBox(this).apply {
+            text = "Verrouiller l'application (empreinte, visage ou code du téléphone)"; textSize = 12f; isChecked = Compte.verrou(this@MainActivity)
+            setOnCheckedChangeListener { bouton, actif ->
+                if (actif && !Verrou.disponible(this@MainActivity)) { bouton.isChecked = false; toast("Aucun verrouillage d'écran sur ce téléphone : activez d'abord un code, une empreinte ou un visage dans les réglages d'Android."); return@setOnCheckedChangeListener }
+                Compte.definirVerrou(this@MainActivity, actif); deverrouilleJusqua = System.currentTimeMillis() + 60_000L
+                toast(if (actif) "Verrou activé : l'application demandera votre empreinte, votre visage ou votre code à l'ouverture." else "Verrou désactivé.")
+            }
+        }
+        colonne.addView(caseVerrou)
+        boutonDeconnexion = bouton("Se déconnecter", android.R.drawable.ic_menu_revert, "#475569") { deconnecter() }
+        colonne.addView(boutonDeconnexion)
+        boutonRetrait = bouton("Retirer mon accord et supprimer ma fiche", android.R.drawable.ic_menu_delete, "#B91C1C") { confirmerRetrait() }
+        colonne.addView(boutonRetrait)
 
         // ---- connexion actuelle (Wi-Fi, mobile ou aucune) et raison des boutons grisés ----
         ligneReseau = titre("", 13f, Color.parseColor("#334155"))
@@ -219,19 +257,71 @@ class MainActivity : Activity() {
         tableau = TableLayout(this).apply { isStretchAllColumns = true }
         colonne.addView(tableau)
 
-        setContentView(racine)
+        // voile « verrouillé » : posé par-dessus tout le contenu tant que le déverrouillage n'a pas réussi
+        voile = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setBackgroundColor(Color.parseColor("#F3F5F9")); visibility = View.GONE; isClickable = true
+            addView(titre("🔒 Sonde Réseau verrouillée", 20f, BLEU_NUIT))
+            addView(bouton("Déverrouiller", android.R.drawable.ic_lock_idle_lock, "#0A1E3D") { demanderDeverrouillage() }, LinearLayout.LayoutParams(dp(260), LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(16) })
+        }
+        setContentView(FrameLayout(this).apply { addView(racine); addView(voile) })
         Presence.signaler()
         afficher()
         appliquerEtatSurveillance()
     }
 
     override fun onResume() {
-        super.onResume(); Presence.signaler()
+        super.onResume()
+        if (!Compte.pret(this)) { startActivity(Intent(this, AccesActivity::class.java)); finish(); return }       // déconnecté (jeton expiré) ou accord retiré
+        Presence.signaler(); Localisation.rafraichir(this)
+        if (Compte.verrou(this) && Verrou.disponible(this) && System.currentTimeMillis() > deverrouilleJusqua) { voile.visibility = View.VISIBLE; demanderDeverrouillage() }
         SurveillanceService.relancerSiNecessaire(this)               // surveillance demandée mais service disparu (arrêté par Android) : on le relance
         caseDebitMobile.isChecked = Stockage.debitsMobile(this)
         afficher(); appliquerEtatSurveillance(); horloge.postDelayed(rafraichir, 2_000L); demarrerSondeDirecte()
     }
-    override fun onPause() { super.onPause(); enregistrerReglages(); horloge.removeCallbacks(rafraichir); generationSonde += 1 }       // écran fermé : la sonde en direct s'arrête
+    override fun onPause() {
+        super.onPause()
+        if (!::boutonRetrait.isInitialized) return                                    // écran jamais construit (accès demandé)
+        enregistrerReglages(); horloge.removeCallbacks(rafraichir); generationSonde += 1
+        if (voile.visibility != View.VISIBLE) deverrouilleJusqua = System.currentTimeMillis() + 60_000L      // une minute de grâce pour revenir sans redemander
+    }
+
+    // ------------------------------------------------------------------------------------------------ verrou, déconnexion, retrait de l'accord
+    /** Demande empreinte, visage ou code du téléphone ; le voile ne disparaît qu'en cas de succès. */
+    private fun demanderDeverrouillage() {
+        if (verrouEnCours) return
+        verrouEnCours = true
+        Verrou.demander(this, "Déverrouiller Sonde Réseau", { verrouEnCours = false; voile.visibility = View.GONE; deverrouilleJusqua = System.currentTimeMillis() + 60_000L },
+            { raison -> verrouEnCours = false; toast("Application verrouillée : $raison") })
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(code: Int, resultat: Int, donnees: Intent?) {
+        super.onActivityResult(code, resultat, donnees)
+        if (code == Verrou.CODE_DEMANDE) {                                          // Android 10 et moins : code du téléphone
+            verrouEnCours = false
+            if (resultat == RESULT_OK) { voile.visibility = View.GONE; deverrouilleJusqua = System.currentTimeMillis() + 60_000L } else toast("Application verrouillée : déverrouillage annulé")
+        }
+    }
+
+    /** Déconnexion : arrête la surveillance, révoque le jeton chez SAWALI puis revient à l'écran d'accès. */
+    private fun deconnecter() {
+        if (occupe) return
+        toast("Déconnexion en cours…"); SurveillanceService.arreter(this)
+        Thread { ApiCompte.deconnecter(this); runOnUiThread { toast("Déconnecté. Vos mesures restent sur ce téléphone."); startActivity(Intent(this, AccesActivity::class.java)); finish() } }.start()
+    }
+
+    private fun confirmerRetrait() {
+        android.app.AlertDialog.Builder(this).setTitle("Retirer mon accord ?")
+            .setMessage("Votre fiche (adresse Gmail, appareils, accord) sera supprimée de SAWALI et l'application se fermera à l'accès. Les mesures déjà additionnées par SAWALI, sans identité, restent dans ses synthèses. Vos mesures sur ce téléphone ne sont pas effacées.")
+            .setPositiveButton("Retirer et supprimer") { _, _ ->
+                toast("Suppression de votre fiche en cours…"); SurveillanceService.arreter(this)
+                Thread {
+                    val r = ApiCompte.retirer(this)
+                    runOnUiThread { toast(r.message); if (r.ok) { startActivity(Intent(this, AccesActivity::class.java)); finish() } }
+                }.start()
+            }
+            .setNegativeButton("Annuler", null).show()
+    }       // écran fermé : la sonde en direct s'arrête
 
     // ------------------------------------------------------------------------------------------------ outils d'interface
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
@@ -266,6 +356,8 @@ class MainActivity : Activity() {
         regler(poste, e.reglages); regler(cle, e.reglages); regler(oeil, e.reglages)
         regler(spinnerDuree, e.listesSurveillance); regler(spinnerIntervalle, e.listesSurveillance); regler(spinnerReseau, e.listeReseau)
         regler(caseDebitMobile, e.reglages); regler(spinnerPeriode, e.listeReseau)
+        regler(caseLieu, e.reglages); regler(caseVerrou, e.reglages); regler(boutonDeconnexion, e.reglages); regler(boutonRetrait, e.reglages)
+        ligneCompte.text = "Connecté : ${Compte.email(this).ifBlank { "compte Google" }}"
         regler(boutonSurveillance, e.surveillance); regler(boutonBatterie, e.batterie)
         regler(boutonMesure, e.mesure); regler(boutonRapport, e.rapport); regler(boutonEnvoi, e.envoi)
         regler(boutonActualiser, e.actualiser); regler(boutonEffacer, e.effacer)

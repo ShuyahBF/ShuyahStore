@@ -18,6 +18,7 @@ class SondeWorker(private val ctx: Context, params: WorkerParameters) : Worker(c
     override fun doWork(): Result {
         val maintenant = System.currentTimeMillis()
         if (!Stockage.surveillanceActive(ctx)) { arreter(ctx); return Result.success() }
+        if (!Compte.pret(ctx)) return Result.success()                       // pas de compte : aucune mesure
         if (Surveillance.expiree(Stockage.finSurveillanceMs(ctx), maintenant)) { Stockage.definirSurveillance(ctx, false); arreter(ctx); return Result.success() }
         val intervalle = Stockage.intervalleMin(ctx)
         if (!Surveillance.mesureDue(Stockage.derniereMesureMs(ctx), maintenant, intervalle)) return Result.success()      // le service mesure : rien à faire

@@ -163,6 +163,7 @@ object Mesureur {
 
     private fun cycleSansVerrou(ctx: Context, poste: String, type: String, avecDebit: Boolean, etape: (String) -> Unit): Mesure {
         val reseau = Reseau.actuelle(ctx)                       // réseau au DÉBUT de la mesure : c'est sous cette clé que la mesure est rangée
+        val zone = Localisation.zoneActuelle(ctx)               // zone de 2 km (null si le partage du lieu est coupé ou la zone trop ancienne)
         etape("Mesure de la latence et des pertes (ping)…")
         val (lat, methode) = latence()
         etape("Test des connexions HTTPS…")
@@ -177,6 +178,7 @@ object Mesureur {
             latenceMoy = lat.moy, latenceMin = lat.min, latenceMax = lat.max, httpsOk = httpsOk, httpsTotal = httpsTotal,
             debitDesc = desc?.moyen, debitMont = mont?.moyen, debitDescMin = desc?.plusBas, debitMontMin = mont?.plusBas,
             methode = methode, connexion = reseau.mode, reseau = reseau.cle.takeIf { reseau.aInternet },
+            operateur = Reseau.operateurDe(reseau.cle), zoneLat = zone?.first, zoneLon = zone?.second,
         )
     }
 }

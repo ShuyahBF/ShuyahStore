@@ -62,6 +62,8 @@ class SurveillanceService : Service() {
             val fin = Stockage.finSurveillanceMs(this)
             if (!Stockage.surveillanceActive(this)) break
             if (Surveillance.expiree(fin, System.currentTimeMillis())) { terminer(); return }
+            if (!Compte.pret(this)) { terminer(); return }                  // déconnecté ou accord retiré : la surveillance s'arrête (aucune mesure sans compte)
+            Localisation.rafraichir(this)                                    // zone de 2 km (sans effet si le partage est coupé ou la permission refusée)
             val connexion = Reseau.actuelle(this)
             if (!connexion.aInternet) {                                  // pas d'Internet : on suspend et on regarde de nouveau dans une seconde
                 if (suspendueDepuis == 0L) { suspendueDepuis = System.currentTimeMillis(); majNotificationTexte("Aucune connexion Internet depuis ${SimpleDateFormat("HH:mm", Locale.FRANCE).format(Date(suspendueDepuis))} : mesures suspendues, reprise automatique au retour du réseau.") }
