@@ -41,6 +41,12 @@ object Calculs {
         return numeroCycle % tous == 0
     }
 
+    /**
+     * Le test de débit est-il DÛ ? Un test par heure, selon l'HEURE (et non selon un compteur de cycles : le premier test pouvait alors tarder jusqu'à une heure) :
+     * jamais fait (0) = dû tout de suite ; sinon dû dès 55 minutes après le dernier (marge pour que la dérive des cycles ne le repousse pas d'un cycle entier).
+     */
+    fun debitDu(dernierDebitMs: Long, maintenantMs: Long): Boolean = dernierDebitMs <= 0L || maintenantMs - dernierDebitMs >= 55 * 60_000L
+
     /** Perte d'une mesure en % (null si aucun essai). */
     fun pctPerte(essais: Int, perdus: Int): Double? = if (essais > 0) Math.round(perdus * 1000.0 / essais) / 10.0 else null
 

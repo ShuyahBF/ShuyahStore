@@ -48,16 +48,33 @@ class SurveillanceService : Service() {
         return START_STICKY
     }
 
-    /** Boucle de mesure : une mesure, l'envoi à SAWALI, puis attente (par tranches d'une seconde, pour réagir tout de suite à un arrêt) jusqu'à la suivante. */
+    /**
+     * Boucle de mesure : une mesure, l'envoi à SAWALI, puis attente (par tranches d'une seconde, pour réagir tout de suite à un arrêt) jusqu'à la suivante.
+     * SUIVI DU RÉSEAU :
+     *  - sans Internet, la surveillance est SUSPENDUE : aucune mesure (elle n'aurait aucun sens), la notification l'indique, et la mesure reprend TOUTE SEULE
+     *    dès que le réseau revient (la première mesure est faite tout de suite, sans attendre la fin de l'intervalle) ;
+     *  - si le réseau CHANGE pendant l'attente (Wi-Fi → mobile, autre Wi-Fi), une mesure est faite aussitôt : chaque réseau a ainsi son propre historique ;
+     *  - chaque mesure est rangée sous la clé de son réseau (Mesureur.cycle).
+     */
     private fun boucle() {
+        var suspendueDepuis = 0L
         while (!arret) {
             val fin = Stockage.finSurveillanceMs(this)
             if (!Stockage.surveillanceActive(this)) break
             if (Surveillance.expiree(fin, System.currentTimeMillis())) { terminer(); return }
+            if (!Compte.pret(this)) { terminer(); return }                  // déconnecté ou accord retiré : la surveillance s'arrête (aucune mesure sans compte)
+            Localisation.rafraichir(this)                                    // zone de 2 km (sans effet si le partage est coupé ou la permission refusée)
+            val connexion = Reseau.actuelle(this)
+            if (!connexion.aInternet) {                                  // pas d'Internet : on suspend et on regarde de nouveau dans une seconde
+                if (suspendueDepuis == 0L) { suspendueDepuis = System.currentTimeMillis(); majNotificationTexte("Aucune connexion Internet depuis ${SimpleDateFormat("HH:mm", Locale.FRANCE).format(Date(suspendueDepuis))} : mesures suspendues, reprise automatique au retour du réseau.") }
+                try { Thread.sleep(1000) } catch (e: InterruptedException) { return }
+                continue
+            }
+            suspendueDepuis = 0L
             val intervalle = Stockage.intervalleMin(this)
-            val cycle = Stockage.cycleSuivant(this)
-            val wifi = Mesureur.reseau(this) == "wifi"
-            val m = Mesureur.cycle(this, Stockage.poste(this), "mobile", Calculs.doitMesurerDebit(cycle, intervalle) && wifi)
+            val avecDebit = Calculs.debitDu(Stockage.dernierDebitMs(this), System.currentTimeMillis()) && (connexion.mode == Reseau.WIFI || Stockage.debitsMobile(this))
+            val m = Mesureur.cycle(this, Stockage.poste(this), "mobile", avecDebit)
+            if (m.debitDesc != null || m.debitMont != null) Stockage.noterDebit(this, System.currentTimeMillis())
             Stockage.ajouter(this, m)
             Stockage.noterMesure(this, System.currentTimeMillis())
             EnvoiSawali.envoyerEnAttente(this)
@@ -66,6 +83,8 @@ class SurveillanceService : Service() {
             val prochaine = Surveillance.prochaineMs(System.currentTimeMillis(), intervalle)
             while (!arret && System.currentTimeMillis() < prochaine && Stockage.surveillanceActive(this)) {
                 if (Surveillance.expiree(fin, System.currentTimeMillis())) break
+                val maintenant = Reseau.actuelle(this)
+                if (maintenant.cle != connexion.cle) break               // réseau perdu ou changé : on repart sur la boucle principale (suspension ou nouvelle mesure)
                 try { Thread.sleep(1000) } catch (e: InterruptedException) { return }
             }
         }
@@ -104,7 +123,11 @@ class SurveillanceService : Service() {
     private fun majNotification(m: Mesure, fin: Long, intervalle: Int) {
         val heure = SimpleDateFormat("HH:mm", Locale.FRANCE).format(Date())
         val reste = Surveillance.restantMs(fin, System.currentTimeMillis())?.let { " · reste ${Surveillance.libelleRestant(it)}" } ?: " · jusqu'à l'arrêt"
-        val texte = "Mesure de $heure : perte ${Calculs.fmt(m.pctPerte)} %, latence ${Calculs.fmt(m.latenceMoy)} ms. Une mesure toutes les $intervalle min$reste."
+        val reseau = m.reseau?.let { " (${Reseau.libelleCourt(it)})" } ?: ""
+        majNotificationTexte("Mesure de $heure$reseau : perte ${Calculs.fmt(m.pctPerte)} %, latence ${Calculs.fmt(m.latenceMoy)} ms. Une mesure toutes les $intervalle min$reste.")
+    }
+
+    private fun majNotificationTexte(texte: String) {
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(ID_NOTIF, notification(texte))
     }
 

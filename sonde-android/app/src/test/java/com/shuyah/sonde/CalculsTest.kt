@@ -1,6 +1,7 @@
 package com.shuyah.sonde
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -68,5 +69,13 @@ class CalculsTest {
 
     @Test fun nombres_au_format_francais() {
         assertEquals("83,2", Calculs.fmt(83.2)); assertEquals("—", Calculs.fmt(null)); assertEquals("10", Calculs.fmt(10.0, 0))
+    }
+
+    @Test fun le_debit_est_du_une_fois_par_heure_selon_l_heure() {
+        val minute = 60_000L
+        assertTrue(Calculs.debitDu(0L, 5 * minute))                       // jamais mesuré : dû tout de suite (plus d'attente d'un cycle sur quatre)
+        assertFalse(Calculs.debitDu(100 * minute, 100 * minute + 15 * minute))
+        assertFalse(Calculs.debitDu(100 * minute, 100 * minute + 54 * minute))
+        assertTrue(Calculs.debitDu(100 * minute, 100 * minute + 55 * minute))   // marge de 5 minutes : un cycle de retard ne repousse pas d'une heure de plus
     }
 }
