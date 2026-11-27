@@ -1,5 +1,7 @@
 # Sonde Réseau (application Android)
 
+**Version 1.7 : le partage du lieu approximatif est PERMANENT (case visible, cochée et non modifiable) ; consentement version 2 (le texte le dit).**
+
 **Version 1.6 : écran en cinq onglets (Graphiques, Réglages, Mesures, Tableau, Sauvegardes Et Envois) et boutons d'action en pictogrammes ronds colorés (info-bulle, légende discrète).**
 
 **Version 1.5 : compte Google obligatoire, consentement, espace commun SAWALI, lieu approximatif, verrou biométrique.**
