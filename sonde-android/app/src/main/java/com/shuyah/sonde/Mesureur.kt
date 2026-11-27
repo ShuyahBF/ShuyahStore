@@ -149,7 +149,12 @@ object Mesureur {
 
     // ---------------------------------------------------------------------------------------------------------- un cycle complet
     /** Un CYCLE complet. `etape` informe l'écran de l'avancement. Rend la mesure (jamais d'exception : une panne de réseau est un résultat, « 100 % perdu »). */
-    fun cycle(ctx: Context, poste: String, type: String, avecDebit: Boolean, etape: (String) -> Unit = {}): Mesure {
+    // Un SEUL cycle à la fois : la mesure manuelle et celle du service s'attendent l'une l'autre au lieu de se chevaucher (deux tests simultanés fausseraient les débits)
+    private val verrouCycle = Any()
+
+    fun cycle(ctx: Context, poste: String, type: String, avecDebit: Boolean, etape: (String) -> Unit = {}): Mesure = synchronized(verrouCycle) { cycleSansVerrou(ctx, poste, type, avecDebit, etape) }
+
+    private fun cycleSansVerrou(ctx: Context, poste: String, type: String, avecDebit: Boolean, etape: (String) -> Unit): Mesure {
         val reseau = reseau(ctx)
         etape("Mesure de la latence et des pertes (ping)…")
         val (lat, methode) = latence()

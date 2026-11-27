@@ -1,21 +1,30 @@
 package com.shuyah.sonde
 
 import android.app.Activity
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
+import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.Switch
+import android.widget.Spinner
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
@@ -44,7 +53,17 @@ class MainActivity : Activity() {
     private lateinit var videoVerdict: TextView
     private lateinit var tableau: TableLayout
     private lateinit var boutonMesure: Button
+    private lateinit var boutonSurveillance: Button
+    private lateinit var boutonBatterie: Button
+    private lateinit var spinnerDuree: Spinner
+    private lateinit var spinnerIntervalle: Spinner
+    private lateinit var etatSurveillance: TextView
     @Volatile private var occupe = false
+    private val controles = ArrayList<View>()        // tout ce qui est grisé pendant « Mesurer maintenant » ou l'envoi
+    private val horloge = Handler(Looper.getMainLooper())
+    private val rafraichir = object : Runnable {      // l'écran se met à jour tout seul toutes les 15 secondes (la surveillance mesure en arrière-plan)
+        override fun run() { if (!occupe) { afficher(); appliquerEtatSurveillance() }; horloge.postDelayed(this, 15_000L) }
+    }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -59,7 +78,7 @@ class MainActivity : Activity() {
         }
 
         colonne.addView(titre("Sonde Réseau", 24f, Color.WHITE).apply { setBackgroundColor(BLEU_NUIT); setPadding(dp(14), dp(14), dp(14), dp(14)) })
-        colonne.addView(texte("Mesure la latence, la perte, les connexions HTTPS et les débits de CE téléphone vers Cloudflare, garde l'historique et produit un rapport HTML à partager.", 13f, Color.parseColor("#475569")).apply { setPadding(0, dp(8), 0, dp(8)) })
+        colonne.addView(texte("Version ${BuildConfig.VERSION_NAME} · mesure la latence, la perte, les connexions HTTPS et les débits de CE téléphone vers Cloudflare, garde l'historique et produit un rapport HTML à partager.", 13f, Color.parseColor("#475569")).apply { setPadding(0, dp(8), 0, dp(8)) })
 
         // ---- réglages ----
         colonne.addView(etiquette("Nom de ce téléphone"))
@@ -86,18 +105,27 @@ class MainActivity : Activity() {
         colonne.addView(ligneCle)
         colonne.addView(texte("La clé est la valeur de la variable SONDE_RESEAU_CLE créée dans Render. Elle reste sur ce téléphone.", 11f, Color.parseColor("#64748B")))
 
-        val auto = Switch(this).apply {
-            text = "Mesure automatique toutes les ${SondeWorker.INTERVALLE_MIN} minutes"; isChecked = Stockage.automatique(this@MainActivity)
-            setPadding(0, dp(10), 0, dp(4))
-            setOnCheckedChangeListener { _, actif ->
-                enregistrerReglages()
-                Stockage.definirAutomatique(this@MainActivity, actif)
-                if (actif) { SondeWorker.planifier(this@MainActivity); toast("Mesure automatique activée : une mesure toutes les ${SondeWorker.INTERVALLE_MIN} minutes.") }
-                else { SondeWorker.arreter(this@MainActivity); toast("Mesure automatique arrêtée.") }
-            }
+        // ---- surveillance PERMANENTE ou sur une période : listes déroulantes (valeurs finies) + un bouton Démarrer / Arrêter ----
+        colonne.addView(titre("Surveillance continue", 15f, BLEU_NUIT).apply { setPadding(0, dp(16), 0, 0) })
+        colonne.addView(etiquette("Durée de la surveillance"))
+        spinnerDuree = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, Surveillance.DUREES.map { it.libelle })
+            setSelection(Surveillance.DUREES.indexOfFirst { it.code == Stockage.dureeCode(this@MainActivity) }.coerceAtLeast(0))
         }
-        colonne.addView(auto)
-        colonne.addView(texte("Les débits (≈ 12 Mo) ne sont mesurés qu'une fois par heure, en Wi-Fi seulement. Android peut retarder une mesure en économie de batterie.", 11f, Color.parseColor("#64748B")))
+        colonne.addView(spinnerDuree)
+        colonne.addView(etiquette("Une mesure toutes les"))
+        spinnerIntervalle = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, Surveillance.INTERVALLES_MIN.map { "$it minutes" })
+            setSelection(Surveillance.INTERVALLES_MIN.indexOf(Stockage.intervalleMin(this@MainActivity)).coerceAtLeast(0))
+        }
+        colonne.addView(spinnerIntervalle)
+        boutonSurveillance = bouton("Démarrer la surveillance", android.R.drawable.ic_media_play, "#047857") { basculerSurveillance() }
+        colonne.addView(boutonSurveillance)
+        etatSurveillance = texte("", 12f, Color.parseColor("#334155")).apply { setPadding(0, dp(6), 0, 0) }
+        colonne.addView(etatSurveillance)
+        colonne.addView(texte("La surveillance continue écran éteint et application fermée, grâce à une notification permanente (bouton « Arrêter » inclus). Elle s'arrête toute seule à la fin de la durée choisie. Les débits (≈ 12 Mo) ne sont mesurés qu'une fois par heure, en Wi-Fi seulement. Brancher le téléphone sur secteur est conseillé.", 11f, Color.parseColor("#64748B")))
+        boutonBatterie = bouton("Autoriser l'arrière-plan (économie de batterie)", android.R.drawable.ic_menu_manage, "#475569") { ouvrirReglageBatterie() }
+        colonne.addView(boutonBatterie)
 
         // ---- boutons : chacun a son pictogramme et sa légende ----
         boutonMesure = bouton("Mesurer maintenant", android.R.drawable.ic_media_play, "#0A1E3D") { mesurerMaintenant() }
@@ -106,6 +134,9 @@ class MainActivity : Activity() {
         colonne.addView(bouton("Envoyer à SAWALI", android.R.drawable.ic_menu_upload, "#1D4ED8") { envoyerMaintenant() })
         colonne.addView(bouton("Actualiser", android.R.drawable.ic_menu_rotate, "#6D28D9") { toast("Actualisation en cours…"); afficher(); toast("${Stockage.lire(this).size} mesure(s) relue(s).") })
         colonne.addView(bouton("Effacer les mesures", android.R.drawable.ic_menu_delete, "#B91C1C") { confirmerEffacement() })
+        // Tout ce qui se touche est grisé pendant « Mesurer maintenant » et l'envoi : réglages, listes, boutons et œil
+        controles.addAll(listOf(poste, cle, oeil, spinnerDuree, spinnerIntervalle, boutonSurveillance, boutonBatterie))
+        for (i in 0 until colonne.childCount) (colonne.getChildAt(i) as? Button)?.let { if (it !in controles) controles.add(it) }
 
         statut = texte("", 12f, Color.parseColor("#334155")); colonne.addView(statut)
         alerte = texte("", 13f, Color.parseColor("#991B1B")).apply { setTypeface(typeface, Typeface.BOLD); setBackgroundColor(Color.parseColor("#FEE2E2")); setPadding(dp(10), dp(8), dp(10), dp(8)); visibility = View.GONE }
@@ -117,13 +148,17 @@ class MainActivity : Activity() {
         colonne.addView(tableau)
 
         setContentView(racine)
-        if (Stockage.automatique(this)) SondeWorker.planifier(this)          // la planification survit déjà aux redémarrages ; on la confirme
         Presence.signaler()
         afficher()
+        appliquerEtatSurveillance()
     }
 
-    override fun onResume() { super.onResume(); Presence.signaler(); afficher() }
-    override fun onPause() { super.onPause(); enregistrerReglages() }
+    override fun onResume() {
+        super.onResume(); Presence.signaler()
+        SurveillanceService.relancerSiNecessaire(this)               // surveillance demandée mais service disparu (arrêté par Android) : on le relance
+        afficher(); appliquerEtatSurveillance(); horloge.postDelayed(rafraichir, 15_000L)
+    }
+    override fun onPause() { super.onPause(); enregistrerReglages(); horloge.removeCallbacks(rafraichir) }
 
     // ------------------------------------------------------------------------------------------------ outils d'interface
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
@@ -142,6 +177,50 @@ class MainActivity : Activity() {
     private fun couleurNiveau(n: Calculs.Niveau) = when (n) {
         Calculs.Niveau.OK -> Color.parseColor("#047857"); Calculs.Niveau.ATTENTION -> Color.parseColor("#C2410C")
         Calculs.Niveau.CRITIQUE -> Color.parseColor("#B91C1C"); Calculs.Niveau.INCONNU -> Color.parseColor("#64748B")
+    }
+
+    /** Grise (ou rend) TOUS les contrôles : pendant une mesure ou un envoi, rien ne doit pouvoir être touché. */
+    private fun verrouiller(verrouille: Boolean) {
+        controles.forEach { it.isEnabled = !verrouille; it.alpha = if (verrouille) 0.4f else 1f }
+        if (!verrouille) appliquerEtatSurveillance()                  // les listes restent grisées tant que la surveillance tourne
+    }
+
+    private fun economieBatterieDesactivee(): Boolean = (getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
+
+    /** Texte, couleur et boutons de la surveillance selon son état réel. */
+    private fun appliquerEtatSurveillance() {
+        val active = Stockage.surveillanceActive(this)
+        val fin = Stockage.finSurveillanceMs(this)
+        val maintenant = System.currentTimeMillis()
+        etatSurveillance.text = if (!active) "○ Surveillance arrêtée."
+        else {
+            val jusqua = if (fin > 0L) "jusqu'au ${SimpleDateFormat("dd/MM HH:mm", Locale.FRANCE).format(Date(fin))} (reste ${Surveillance.libelleRestant(Surveillance.restantMs(fin, maintenant) ?: 0L)})" else "jusqu'à l'arrêt"
+            "● Surveillance ACTIVE : une mesure toutes les ${Stockage.intervalleMin(this)} min, $jusqua." + if (SurveillanceService.vivant) "" else " Démarrage du service…"
+        }
+        etatSurveillance.setTextColor(if (active) Color.parseColor("#047857") else Color.parseColor("#64748B"))
+        boutonSurveillance.text = if (active) "Arrêter la surveillance" else "Démarrer la surveillance"
+        boutonSurveillance.setCompoundDrawablesWithIntrinsicBounds(if (active) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, 0, 0, 0)
+        (boutonSurveillance.background as? GradientDrawable)?.setColor(Color.parseColor(if (active) "#B91C1C" else "#047857"))
+        if (!occupe) { spinnerDuree.isEnabled = !active; spinnerIntervalle.isEnabled = !active }
+        boutonBatterie.text = if (economieBatterieDesactivee()) "Économie de batterie désactivée pour cette application ✓" else "Autoriser l'arrière-plan (économie de batterie)"
+    }
+
+    private fun basculerSurveillance() {
+        enregistrerReglages()
+        if (Stockage.surveillanceActive(this)) { SurveillanceService.arreter(this); toast("Surveillance arrêtée."); appliquerEtatSurveillance(); return }
+        val duree = Surveillance.DUREES[spinnerDuree.selectedItemPosition.coerceIn(0, Surveillance.DUREES.size - 1)]
+        val intervalle = Surveillance.INTERVALLES_MIN[spinnerIntervalle.selectedItemPosition.coerceIn(0, Surveillance.INTERVALLES_MIN.size - 1)]
+        // Android 13 et plus : la notification permanente demande l'accord de l'utilisateur (la surveillance fonctionne même s'il refuse, mais sans la voir)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7)
+        toast("Démarrage de la surveillance en cours…")
+        SurveillanceService.demarrer(this, duree.code, intervalle)
+        toast("Surveillance démarrée : une mesure toutes les $intervalle minutes, ${duree.libelle.lowercase(Locale.FRANCE)}." + if (economieBatterieDesactivee()) "" else " Conseil : touchez « Autoriser l'arrière-plan » pour qu'Android ne coupe pas la mesure en veille.")
+        appliquerEtatSurveillance()
+    }
+
+    private fun ouvrirReglageBatterie() {
+        toast("Choisissez « Toutes les applications », touchez Sonde Réseau puis « Ne pas optimiser ».")
+        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
     }
 
     private fun enregistrerReglages() { Stockage.definirPoste(this, poste.text.toString()); Stockage.definirCle(this, cle.text.toString()) }
@@ -187,7 +266,7 @@ class MainActivity : Activity() {
     // ------------------------------------------------------------------------------------------------ actions
     private fun mesurerMaintenant() {
         if (occupe) return
-        enregistrerReglages(); occupe = true; boutonMesure.isEnabled = false
+        enregistrerReglages(); occupe = true; verrouiller(true)                      // TOUS les boutons et réglages sont grisés jusqu'à la fin de la mesure
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)            // écran allumé pendant la mesure
         toast("Mesure en cours… (environ 1 minute avec les débits)")
         val nom = Stockage.poste(this)
@@ -196,8 +275,8 @@ class MainActivity : Activity() {
             Stockage.ajouter(this, m)
             val bilan = EnvoiSawali.envoyerEnAttente(this)
             runOnUiThread {
-                occupe = false; boutonMesure.isEnabled = true; window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                afficher(); montrerBilan(bilan)
+                occupe = false; window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                verrouiller(false); afficher(); montrerBilan(bilan)
                 statut.text = "Dernière mesure terminée à ${SimpleDateFormat("HH:mm", Locale.FRANCE).format(Date())}."
                 toast(if (bilan.alerte == null) "Mesure enregistrée." else "Mesure enregistrée, envoi en attente.")
             }
@@ -207,10 +286,11 @@ class MainActivity : Activity() {
     private fun montrerBilan(b: EnvoiSawali.Bilan) { alerte.text = b.message; alerte.visibility = if (b.message.isBlank()) View.GONE else View.VISIBLE }
 
     private fun envoyerMaintenant() {
-        enregistrerReglages(); toast("Envoi à SAWALI en cours…")
+        if (occupe) return
+        enregistrerReglages(); occupe = true; verrouiller(true); toast("Envoi à SAWALI en cours…")
         Thread {
             val b = EnvoiSawali.envoyerEnAttente(this)
-            runOnUiThread { afficher(); montrerBilan(b); toast(if (b.alerte == null) "${b.envoyees} mesure(s) envoyée(s) à SAWALI." else "Envoi impossible : voir le message en rouge.") }
+            runOnUiThread { occupe = false; verrouiller(false); afficher(); montrerBilan(b); toast(if (b.alerte == null) "${b.envoyees} mesure(s) envoyée(s) à SAWALI." else "Envoi impossible : voir le message en rouge.") }
         }.start()
     }
 

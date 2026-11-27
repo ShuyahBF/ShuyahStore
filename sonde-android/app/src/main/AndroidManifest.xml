@@ -5,6 +5,13 @@
          Deux autorisations seulement, aucune autorisation sensible : Internet, et l'état du réseau (Wi-Fi ou mobile). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Surveillance permanente (version 1.1) : service au premier plan avec notification permanente « Sonde Réseau en marche » (bouton Arrêter), processeur gardé éveillé
+         pendant la surveillance, relance après un redémarrage du téléphone. Le type « specialUse » évite la limite de 6 heures par jour imposée à « dataSync » sur Android 15. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="false"
@@ -23,6 +30,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Service de surveillance continue, écran éteint et application fermée -->
+        <service
+            android:name=".SurveillanceService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Mesure continue de la qualité de la connexion réseau demandée par l'utilisateur" />
+        </service>
+
+        <!-- Relance de la surveillance après un redémarrage du téléphone -->
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+        </receiver>
 
         <!-- Partage du rapport HTML (menu de partage d'Android : e-mail, WhatsApp, Drive…) : le fichier est lu par l'application choisie grâce à cette autorisation temporaire -->
         <provider
