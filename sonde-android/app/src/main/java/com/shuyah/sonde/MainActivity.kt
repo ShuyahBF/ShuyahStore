@@ -54,20 +54,20 @@ class MainActivity : Activity() {
     private lateinit var synthese: TextView
     private lateinit var videoVerdict: TextView
     private lateinit var tableau: TableLayout
-    private lateinit var boutonMesure: Button
-    private lateinit var boutonSurveillance: Button
-    private lateinit var boutonBatterie: Button
-    private lateinit var boutonRapport: Button
-    private lateinit var boutonEnvoi: Button
-    private lateinit var boutonActualiser: Button
-    private lateinit var boutonEffacer: Button
+    private lateinit var boutonMesure: ImageButton
+    private lateinit var boutonSurveillance: ImageButton
+    private lateinit var boutonBatterie: ImageButton
+    private lateinit var boutonRapport: ImageButton
+    private lateinit var boutonEnvoi: ImageButton
+    private lateinit var boutonActualiser: ImageButton
+    private lateinit var boutonEffacer: ImageButton
     private lateinit var oeil: ImageButton
     private lateinit var caseDebitMobile: CheckBox
     private lateinit var ligneCompte: TextView            // « Connecté : awa.badini@gmail.com »
     private lateinit var caseLieu: CheckBox               // partage du lieu approximatif (zone de 2 km), activé par défaut
     private lateinit var caseVerrou: CheckBox             // verrou par empreinte / visage / code du téléphone
-    private lateinit var boutonDeconnexion: Button
-    private lateinit var boutonRetrait: Button
+    private lateinit var boutonDeconnexion: ImageButton
+    private lateinit var boutonRetrait: ImageButton
     private lateinit var voile: LinearLayout              // écran « verrouillé » posé par-dessus le contenu
     private var deverrouilleJusqua = 0L                   // jusqu'à quand l'écran reste déverrouillé après une sortie (1 minute)
     private var verrouEnCours = false                     // une demande de déverrouillage est déjà affichée
@@ -104,21 +104,26 @@ class MainActivity : Activity() {
     override fun onCreate(etat: Bundle?) {
         super.onCreate(etat)
         if (!Compte.pret(this)) { startActivity(Intent(this, AccesActivity::class.java)); finish(); return }        // pas d'accord ou pas de compte : écran d'accès
-        val racine = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#F3F5F9")) }
-        val colonne = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(24)) }
-        racine.addView(colonne)
+        // ---- squelette : en-tête fixe (titre, connexion, actions, onglets) + UNE page à la fois dans la zone qui défile (règle du propriétaire du 27/11/2026) ----
+        val cadre = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.parseColor("#F3F5F9")) }
         // Android 15 dessine sous les barres du système : on décale le contenu
-        ViewCompat.setOnApplyWindowInsetsListener(racine) { v, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(cadre) { v, insets ->
             val b = insets.getInsets(WindowInsetsCompat.Type.systemBars()); v.setPadding(b.left, b.top, b.right, b.bottom); insets
         }
-
-        colonne.addView(titre("Sonde Réseau", 24f, Color.WHITE).apply { setBackgroundColor(BLEU_NUIT); setPadding(dp(14), dp(14), dp(14), dp(14)) })
-        colonne.addView(texte("Version ${BuildConfig.VERSION_NAME} · mesure la latence, la perte, les connexions HTTPS et les débits de CE téléphone vers Cloudflare, garde l'historique et produit un rapport HTML à partager.", 13f, Color.parseColor("#475569")).apply { setPadding(0, dp(8), 0, dp(8)) })
+        val entete = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(4)) }
+        val pGraph = nouvellePage(); val pReg = nouvellePage(); val pMes = nouvellePage(); val pTab = nouvellePage(); val pEnv = nouvellePage()
+        val bReg = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }       // réglages des mesures et de la surveillance
+        val bCompte = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }     // compte et confidentialité
+        val bEnv = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }        // clé d'envoi à SAWALI
+        // rangées de pictogrammes : ronds colorés, légende discrète dessous (les gros boutons à texte sont remplacés)
+        val rActions = rangeePicos(); val rReg = rangeePicos(); val rCompte = rangeePicos(); val rEnv = rangeePicos()
+        cadre.addView(titre("Sonde Réseau", 24f, Color.WHITE).apply { setBackgroundColor(BLEU_NUIT); setPadding(dp(14), dp(14), dp(14), dp(14)) })
+        cadre.addView(texte("Version ${BuildConfig.VERSION_NAME} · mesure la latence, la perte, les connexions HTTPS et les débits de CE téléphone vers Cloudflare, garde l'historique et produit un rapport HTML à partager.", 13f, Color.parseColor("#475569")).apply { setPadding(0, dp(8), 0, dp(8)) })
 
         // ---- compte et confidentialité : Google, lieu approximatif, verrou, déconnexion, retrait de l'accord ----
-        colonne.addView(titre("Compte et confidentialité", 15f, BLEU_NUIT).apply { setPadding(0, dp(6), 0, 0) })
+        bCompte.addView(titre("Compte et confidentialité", 15f, BLEU_NUIT).apply { setPadding(0, dp(6), 0, 0) })
         ligneCompte = texte("", 13f, Color.parseColor("#047857")).apply { setTypeface(typeface, Typeface.BOLD) }
-        colonne.addView(ligneCompte)
+        bCompte.addView(ligneCompte)
         caseLieu = CheckBox(this).apply {
             text = "Partager mon lieu approximatif (zone de 2 km, jamais ma position précise)"; textSize = 12f; isChecked = Compte.partageLieu(this@MainActivity)
             setOnCheckedChangeListener { _, actif ->
@@ -128,7 +133,7 @@ class MainActivity : Activity() {
                 toast(if (actif) "Partage du lieu approximatif : activé." else "Partage du lieu : désactivé, les prochaines mesures partent sans lieu.")
             }
         }
-        colonne.addView(caseLieu)
+        bCompte.addView(caseLieu)
         caseVerrou = CheckBox(this).apply {
             text = "Verrouiller l'application (empreinte, visage ou code du téléphone)"; textSize = 12f; isChecked = Compte.verrou(this@MainActivity)
             setOnCheckedChangeListener { bouton, actif ->
@@ -137,23 +142,23 @@ class MainActivity : Activity() {
                 toast(if (actif) "Verrou activé : l'application demandera votre empreinte, votre visage ou votre code à l'ouverture." else "Verrou désactivé.")
             }
         }
-        colonne.addView(caseVerrou)
-        boutonDeconnexion = bouton("Se déconnecter", android.R.drawable.ic_menu_revert, "#475569") { deconnecter() }
-        colonne.addView(boutonDeconnexion)
-        boutonRetrait = bouton("Retirer mon accord et supprimer ma fiche", android.R.drawable.ic_menu_delete, "#B91C1C") { confirmerRetrait() }
-        colonne.addView(boutonRetrait)
+        bCompte.addView(caseVerrou)
+        boutonDeconnexion = pico("Se déconnecter", android.R.drawable.ic_menu_revert, "#475569") { deconnecter() }
+        ajouterPico(rCompte, boutonDeconnexion, "Déconnexion")
+        boutonRetrait = pico("Retirer mon accord et supprimer ma fiche", android.R.drawable.ic_menu_delete, "#B91C1C") { confirmerRetrait() }
+        ajouterPico(rCompte, boutonRetrait, "Retirer l'accord")
 
         // ---- connexion actuelle (Wi-Fi, mobile ou aucune) et raison des boutons grisés ----
         ligneReseau = titre("", 13f, Color.parseColor("#334155"))
-        colonne.addView(ligneReseau)
+        entete.addView(ligneReseau)
         messageActivite = texte("", 11f, Color.parseColor("#B45309")).apply { visibility = View.GONE }
-        colonne.addView(messageActivite)
+        entete.addView(messageActivite)
 
         // ---- réglages ----
-        colonne.addView(etiquette("Nom de ce téléphone"))
+        bReg.addView(etiquette("Nom de ce téléphone"))
         poste = EditText(this).apply { setText(Stockage.poste(this@MainActivity)); setSingleLine(); hint = "Nom de ce téléphone" }
-        colonne.addView(poste)
-        colonne.addView(etiquette("Clé de la sonde (envoi à SAWALI)"))
+        bReg.addView(poste)
+        bEnv.addView(etiquette("Clé de la sonde (envoi à SAWALI)"))
         val ligneCle = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         cle = EditText(this).apply {
             setText(Stockage.cle(this@MainActivity)); setSingleLine(); hint = "Valeur de SONDE_RESEAU_CLE"
@@ -171,55 +176,55 @@ class MainActivity : Activity() {
             }
         }
         ligneCle.addView(oeil, LinearLayout.LayoutParams(dp(48), dp(48)))
-        colonne.addView(ligneCle)
-        colonne.addView(texte("La clé est la valeur de la variable SONDE_RESEAU_CLE créée dans Render. Elle reste sur ce téléphone.", 11f, Color.parseColor("#64748B")))
+        bEnv.addView(ligneCle)
+        bEnv.addView(texte("La clé est la valeur de la variable SONDE_RESEAU_CLE créée dans Render. Elle reste sur ce téléphone.", 11f, Color.parseColor("#64748B")))
 
         // ---- surveillance PERMANENTE ou sur une période : listes déroulantes (valeurs finies) + un bouton Démarrer / Arrêter ----
-        colonne.addView(titre("Surveillance continue", 15f, BLEU_NUIT).apply { setPadding(0, dp(16), 0, 0) })
-        colonne.addView(etiquette("Durée de la surveillance"))
+        bReg.addView(titre("Surveillance continue", 15f, BLEU_NUIT).apply { setPadding(0, dp(16), 0, 0) })
+        bReg.addView(etiquette("Durée de la surveillance"))
         spinnerDuree = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, Surveillance.DUREES.map { it.libelle })
             setSelection(Surveillance.DUREES.indexOfFirst { it.code == Stockage.dureeCode(this@MainActivity) }.coerceAtLeast(0))
         }
-        colonne.addView(spinnerDuree)
-        colonne.addView(etiquette("Une mesure toutes les"))
+        bReg.addView(spinnerDuree)
+        bReg.addView(etiquette("Une mesure toutes les"))
         spinnerIntervalle = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, Surveillance.INTERVALLES_MIN.map { "$it minutes" })
             setSelection(Surveillance.INTERVALLES_MIN.indexOf(Stockage.intervalleMin(this@MainActivity)).coerceAtLeast(0))
         }
-        colonne.addView(spinnerIntervalle)
-        boutonSurveillance = bouton("Démarrer la surveillance", android.R.drawable.ic_media_play, "#047857") { basculerSurveillance() }
-        colonne.addView(boutonSurveillance)
+        bReg.addView(spinnerIntervalle)
+        boutonSurveillance = pico("Démarrer la surveillance", android.R.drawable.ic_media_play, "#047857") { basculerSurveillance() }
+        ajouterPico(rReg, boutonSurveillance, "Démarrer")
         etatSurveillance = texte("", 12f, Color.parseColor("#334155")).apply { setPadding(0, dp(6), 0, 0) }
-        colonne.addView(etatSurveillance)
-        colonne.addView(texte("La surveillance continue écran éteint et application fermée, grâce à une notification permanente (bouton « Arrêter » inclus). Elle s'arrête toute seule à la fin de la durée choisie. Les débits (≈ 12 Mo) ne sont mesurés qu'une fois par heure. Brancher le téléphone sur secteur est conseillé.", 11f, Color.parseColor("#64748B")))
+        bReg.addView(etatSurveillance)
+        bReg.addView(texte("La surveillance continue écran éteint et application fermée, grâce à une notification permanente (bouton « Arrêter » inclus). Elle s'arrête toute seule à la fin de la durée choisie. Les débits (≈ 12 Mo) ne sont mesurés qu'une fois par heure. Brancher le téléphone sur secteur est conseillé.", 11f, Color.parseColor("#64748B")))
         // Débits en réseau mobile : réglage (oui par défaut) car chaque test consomme ≈ 12 Mo du forfait de données
         caseDebitMobile = CheckBox(this).apply {
             text = "Mesurer aussi les débits en réseau mobile (≈ 12 Mo, une fois par heure)"; textSize = 12f; isChecked = Stockage.debitsMobile(this@MainActivity)
             setOnCheckedChangeListener { _, actif -> Stockage.definirDebitsMobile(this@MainActivity, actif); toast(if (actif) "Débits en réseau mobile : activés." else "Débits en réseau mobile : désactivés (Wi-Fi seulement).") }
         }
-        colonne.addView(caseDebitMobile)
-        boutonBatterie = bouton("Autoriser l'arrière-plan (économie de batterie)", android.R.drawable.ic_menu_manage, "#475569") { ouvrirReglageBatterie() }
-        colonne.addView(boutonBatterie)
+        bReg.addView(caseDebitMobile)
+        boutonBatterie = pico("Autoriser l'arrière-plan (économie de batterie)", android.R.drawable.ic_menu_manage, "#475569") { ouvrirReglageBatterie() }
+        ajouterPico(rReg, boutonBatterie, "Batterie")
 
         // ---- boutons : chacun a son pictogramme et sa légende ----
-        boutonMesure = bouton("Mesurer maintenant", android.R.drawable.ic_media_play, "#0A1E3D") { mesurerMaintenant() }
-        colonne.addView(boutonMesure)
-        boutonRapport = bouton("Rapport HTML à partager", android.R.drawable.ic_menu_share, "#047857") { partagerRapport() }
-        colonne.addView(boutonRapport)
-        boutonEnvoi = bouton("Envoyer à SAWALI", android.R.drawable.ic_menu_upload, "#1D4ED8") { envoyerMaintenant() }
-        colonne.addView(boutonEnvoi)
-        boutonActualiser = bouton("Actualiser", android.R.drawable.ic_menu_rotate, "#6D28D9") { actualiser() }
-        colonne.addView(boutonActualiser)
-        boutonEffacer = bouton("Effacer les mesures", android.R.drawable.ic_menu_delete, "#B91C1C") { confirmerEffacement() }
-        colonne.addView(boutonEffacer)
+        boutonMesure = pico("Mesurer maintenant", android.R.drawable.ic_media_play, "#0A1E3D") { mesurerMaintenant() }
+        ajouterPico(rActions, boutonMesure, "Mesurer")
+        boutonRapport = pico("Rapport HTML à partager", android.R.drawable.ic_menu_share, "#047857") { partagerRapport() }
+        ajouterPico(rEnv, boutonRapport, "Rapport")
+        boutonEnvoi = pico("Envoyer à SAWALI", android.R.drawable.ic_menu_upload, "#1D4ED8") { envoyerMaintenant() }
+        ajouterPico(rEnv, boutonEnvoi, "Envoyer")
+        boutonActualiser = pico("Actualiser", android.R.drawable.ic_menu_rotate, "#6D28D9") { actualiser() }
+        ajouterPico(rActions, boutonActualiser, "Actualiser")
+        boutonEffacer = pico("Effacer les mesures", android.R.drawable.ic_menu_delete, "#B91C1C") { confirmerEffacement() }
+        ajouterPico(rEnv, boutonEffacer, "Effacer")
         // Qui peut se toucher à chaque instant est décidé par Activite.etat (voir appliquerEtatControles) : jamais deux actions incompatibles en même temps
 
-        statut = texte("", 12f, Color.parseColor("#334155")); colonne.addView(statut)
+        statut = texte("", 12f, Color.parseColor("#334155")); pMes.addView(statut)
         alerte = texte("", 13f, Color.parseColor("#991B1B")).apply { setTypeface(typeface, Typeface.BOLD); setBackgroundColor(Color.parseColor("#FEE2E2")); setPadding(dp(10), dp(8), dp(10), dp(8)); visibility = View.GONE }
-        colonne.addView(alerte)
+        entete.addView(alerte)
         // Chaque connexion (Wi-Fi d'un routeur, réseau mobile d'un opérateur) a son propre historique : on choisit celui qu'on regarde (liste déroulante, valeurs finies)
-        colonne.addView(etiquette("Réseau affiché"))
+        entete.addView(etiquette("Réseau affiché"))
         spinnerReseau = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Toutes les connexions"))
             onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -230,15 +235,15 @@ class MainActivity : Activity() {
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
         }
-        colonne.addView(spinnerReseau)
-        synthese = texte("", 14f, Color.BLACK).apply { setPadding(0, dp(10), 0, dp(4)) }; colonne.addView(synthese)
-        videoVerdict = texte("", 12f, Color.parseColor("#334155")); colonne.addView(videoVerdict)
+        entete.addView(spinnerReseau)
+        synthese = texte("", 14f, Color.BLACK).apply { setPadding(0, dp(10), 0, dp(4)) }; pMes.addView(synthese)
+        videoVerdict = texte("", 12f, Color.parseColor("#334155")); pMes.addView(videoVerdict)
         // ---- graphiques : tout ce qui est mesuré, dans le temps ----
-        colonne.addView(titre("Graphiques", 15f, BLEU_NUIT).apply { setPadding(0, dp(14), 0, dp(4)) })
-        colonne.addView(texte("Le premier graphique est EN DIRECT (une sonde légère toutes les 2 secondes tant que cet écran est ouvert, rond rouge = sans réponse). Les autres montrent les mesures de la période choisie et du réseau affiché.", 11f, Color.parseColor("#64748B")))
+        pGraph.addView(titre("Graphiques", 15f, BLEU_NUIT).apply { setPadding(0, dp(14), 0, dp(4)) })
+        pGraph.addView(texte("Le premier graphique est EN DIRECT (une sonde légère toutes les 2 secondes tant que cet écran est ouvert, rond rouge = sans réponse). Les autres montrent les mesures de la période choisie et du réseau affiché.", 11f, Color.parseColor("#64748B")))
         val espace = { LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) } }
-        graphiqueDirect = GraphiqueView(this); colonne.addView(graphiqueDirect, espace())
-        colonne.addView(etiquette("Période des graphiques"))
+        graphiqueDirect = GraphiqueView(this); pGraph.addView(graphiqueDirect, espace())
+        pGraph.addView(etiquette("Période des graphiques"))
         spinnerPeriode = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, Graphiques.PERIODES.map { it.libelle })
             setSelection(Graphiques.PERIODES.indexOfFirst { it.code == periodeChoisie }.coerceAtLeast(0))
@@ -250,12 +255,26 @@ class MainActivity : Activity() {
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
         }
-        colonne.addView(spinnerPeriode)
-        graphiques = Graphiques.COURBES.map { GraphiqueView(this).also { g -> colonne.addView(g, espace()) } }
-        colonne.addView(titre("Dernières mesures", 15f, BLEU_NUIT).apply { setPadding(0, dp(14), 0, dp(4)) })
-        colonne.addView(texte("— dans une colonne de débit = débit non mesuré à ce passage : la surveillance le mesure une fois par heure (≈ 12 Mo), « Mesurer maintenant » le mesure toujours.", 11f, Color.parseColor("#64748B")))
+        pGraph.addView(spinnerPeriode)
+        graphiques = Graphiques.COURBES.map { GraphiqueView(this).also { g -> pGraph.addView(g, espace()) } }
+        pTab.addView(titre("Dernières mesures", 15f, BLEU_NUIT).apply { setPadding(0, dp(14), 0, dp(4)) })
+        pTab.addView(texte("— dans une colonne de débit = débit non mesuré à ce passage : la surveillance le mesure une fois par heure (≈ 12 Mo), « Mesurer maintenant » le mesure toujours.", 11f, Color.parseColor("#64748B")))
         tableau = TableLayout(this).apply { isStretchAllColumns = true }
-        colonne.addView(tableau)
+        pTab.addView(tableau)
+
+        // ---- assemblage : rangées de pictogrammes dans leurs pages, puis les cinq onglets ----
+        entete.addView(rActions)
+        pReg.addView(bReg); pReg.addView(rReg); pReg.addView(bCompte); pReg.addView(rCompte)
+        pEnv.addView(bEnv); pEnv.addView(rEnv)
+        cadre.addView(entete)
+        val zone = ScrollView(this)
+        val contenu = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(4), dp(16), dp(24)) }
+        zone.addView(contenu)
+        pages["graphiques"] = pGraph; pages["reglages"] = pReg; pages["mesures"] = pMes; pages["tableau"] = pTab; pages["envois"] = pEnv
+        pages.values.forEach { contenu.addView(it) }
+        cadre.addView(barreOnglets())
+        cadre.addView(zone, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        choisirOnglet(getSharedPreferences("sonde_ui", MODE_PRIVATE).getString("onglet", "graphiques") ?: "graphiques")
 
         // voile « verrouillé » : posé par-dessus tout le contenu tant que le déverrouillage n'a pas réussi
         voile = LinearLayout(this).apply {
@@ -263,7 +282,7 @@ class MainActivity : Activity() {
             addView(titre("🔒 Sonde Réseau verrouillée", 20f, BLEU_NUIT))
             addView(bouton("Déverrouiller", android.R.drawable.ic_lock_idle_lock, "#0A1E3D") { demanderDeverrouillage() }, LinearLayout.LayoutParams(dp(260), LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(16) })
         }
-        setContentView(FrameLayout(this).apply { addView(racine); addView(voile) })
+        setContentView(FrameLayout(this).apply { addView(cadre); addView(voile) })
         Presence.signaler()
         afficher()
         appliquerEtatSurveillance()
@@ -329,6 +348,67 @@ class MainActivity : Activity() {
     private fun titre(t: String, taille: Float, couleur: Int) = texte(t, taille, couleur).apply { setTypeface(typeface, Typeface.BOLD) }
     private fun etiquette(t: String) = titre(t, 12f, Color.parseColor("#334155")).apply { setPadding(0, dp(10), 0, 0) }
 
+    // ------------------------------------------------------------------------------------------------ onglets et pictogrammes (27/11/2026)
+    private val pages = LinkedHashMap<String, LinearLayout>()              // une page par onglet ; une seule visible à la fois
+    private val onglets = LinkedHashMap<String, TextView>()
+    private val legendes = HashMap<View, TextView>()                        // petite légende sous chaque pictogramme (grisée avec lui)
+    private fun nouvellePage() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+
+    /** Barre des cinq onglets (pictogramme + libellé, une majuscule à chaque mot) : celui qui est ouvert est en bleu nuit. */
+    private fun barreOnglets(): View {
+        val defs = listOf(Triple("graphiques", "Graphiques", android.R.drawable.ic_menu_sort_by_size), Triple("reglages", "Réglages", android.R.drawable.ic_menu_preferences),
+            Triple("mesures", "Mesures", android.R.drawable.ic_menu_info_details), Triple("tableau", "Tableau", android.R.drawable.ic_menu_agenda),
+            Triple("envois", "Sauvegardes\nEt Envois", android.R.drawable.ic_menu_upload))
+        val rangee = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(Color.parseColor("#E2E8F0")) }
+        defs.forEach { (code, libelle, icone) ->
+            val t = TextView(this).apply {
+                text = libelle; textSize = 11f; gravity = Gravity.CENTER; setTypeface(typeface, Typeface.BOLD); setPadding(dp(2), dp(6), dp(2), dp(6))
+                setCompoundDrawablesWithIntrinsicBounds(0, icone, 0, 0); contentDescription = libelle.replace("\n", " ")
+                setOnClickListener { choisirOnglet(code) }
+            }
+            onglets[code] = t
+            rangee.addView(t, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        return rangee
+    }
+
+    private fun choisirOnglet(code: String) {
+        val choix = if (code in pages) code else "graphiques"
+        pages.forEach { (k, v) -> v.visibility = if (k == choix) View.VISIBLE else View.GONE }
+        onglets.forEach { (k, t) ->
+            val actif = k == choix
+            t.setBackgroundColor(if (actif) BLEU_NUIT else Color.TRANSPARENT); t.setTextColor(if (actif) Color.WHITE else BLEU_NUIT)
+            t.compoundDrawables[1]?.setTint(if (actif) Color.WHITE else BLEU_NUIT)
+        }
+        getSharedPreferences("sonde_ui", MODE_PRIVATE).edit().putString("onglet", choix).apply()
+    }
+
+    private fun rangeePicos() = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, dp(6), 0, dp(6)) }
+
+    /** Bouton d'action = PICTOGRAMME rond coloré (règle du propriétaire : plus de gros boutons) ; info-bulle et description d'accessibilité = légende complète. */
+    private fun pico(legende: String, icone: Int, couleur: String, action: () -> Unit) = ImageButton(this).apply {
+        setImageResource(icone); setColorFilter(Color.WHITE); scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE; setPadding(dp(12), dp(12), dp(12), dp(12))
+        background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor(couleur)) }
+        contentDescription = legende; if (Build.VERSION.SDK_INT >= 26) tooltipText = legende
+        setOnClickListener { action() }
+        layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
+    }
+
+    /** Pose un pictogramme dans sa rangée avec une petite légende dessous (zone tactile de 56 dp, bien au-dessus du minimum de 48 dp). */
+    private fun ajouterPico(rangee: LinearLayout, b: ImageButton, legende: String) {
+        val colonnePico = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(4), dp(2), dp(4), dp(2)) }
+        colonnePico.addView(b)
+        val l = texte(legende, 10f, Color.parseColor("#334155")).apply { gravity = Gravity.CENTER; maxLines = 2 }
+        colonnePico.addView(l); legendes[b] = l
+        rangee.addView(colonnePico, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+    }
+
+    /** Change l'allure d'un pictogramme (ex. Démarrer ↔ Arrêter) : icône, couleur, info-bulle et légende. */
+    private fun majPico(b: ImageButton, legende: String, courte: String, icone: Int, couleur: String) {
+        b.setImageResource(icone); b.contentDescription = legende; if (Build.VERSION.SDK_INT >= 26) b.tooltipText = legende
+        (b.background as? GradientDrawable)?.setColor(Color.parseColor(couleur)); legendes[b]?.text = courte
+    }
+
     private fun bouton(legende: String, icone: Int, couleur: String, action: () -> Unit) = Button(this).apply {
         text = legende; setTextColor(Color.WHITE); isAllCaps = false; textSize = 15f
         background = GradientDrawable().apply { setColor(Color.parseColor(couleur)); cornerRadius = dp(24).toFloat() }
@@ -344,7 +424,7 @@ class MainActivity : Activity() {
         Calculs.Niveau.CRITIQUE -> Color.parseColor("#B91C1C"); Calculs.Niveau.INCONNU -> Color.parseColor("#64748B")
     }
 
-    private fun regler(v: View, actif: Boolean) { v.isEnabled = actif; v.alpha = if (actif) 1f else 0.4f }
+    private fun regler(v: View, actif: Boolean) { v.isEnabled = actif; v.alpha = if (actif) 1f else 0.4f; legendes[v]?.alpha = if (actif) 1f else 0.4f }
 
     /**
      * Grise ou réactive CHAQUE contrôle selon ce qui tourne à cet instant (règle de Activite.etat) : une mesure ou un envoi lancé par un bouton OU par la surveillance
@@ -380,10 +460,11 @@ class MainActivity : Activity() {
                 (if (!Reseau.actuelle(this).aInternet) " MESURES SUSPENDUES : pas d'Internet, reprise automatique au retour du réseau." else if (SurveillanceService.vivant) "" else " Démarrage du service…")
         }
         etatSurveillance.setTextColor(if (active) Color.parseColor("#047857") else Color.parseColor("#64748B"))
-        boutonSurveillance.text = if (active) "Arrêter la surveillance" else "Démarrer la surveillance"
-        boutonSurveillance.setCompoundDrawablesWithIntrinsicBounds(if (active) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, 0, 0, 0)
-        (boutonSurveillance.background as? GradientDrawable)?.setColor(Color.parseColor(if (active) "#B91C1C" else "#047857"))
-        boutonBatterie.text = if (economieBatterieDesactivee()) "Économie de batterie désactivée ✓" else "Autoriser l'arrière-plan (économie de batterie)"
+        majPico(boutonSurveillance, if (active) "Arrêter la surveillance" else "Démarrer la surveillance", if (active) "Arrêter" else "Démarrer",
+            if (active) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play, if (active) "#B91C1C" else "#047857")
+        val batterieOk = economieBatterieDesactivee()
+        majPico(boutonBatterie, if (batterieOk) "Économie de batterie désactivée" else "Autoriser l'arrière-plan (économie de batterie)", if (batterieOk) "Batterie ✓" else "Batterie",
+            android.R.drawable.ic_menu_manage, if (batterieOk) "#047857" else "#475569")
         appliquerEtatControles()
     }
 

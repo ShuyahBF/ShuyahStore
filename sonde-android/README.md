@@ -1,5 +1,7 @@
 # Sonde Réseau (application Android)
 
+**Version 1.6 : écran en cinq onglets (Graphiques, Réglages, Mesures, Tableau, Sauvegardes Et Envois) et boutons d'action en pictogrammes ronds colorés (info-bulle, légende discrète).**
+
 **Version 1.5 : compte Google obligatoire, consentement, espace commun SAWALI, lieu approximatif, verrou biométrique.**
 - **Accès** (`AccesActivity`) : à la première utilisation, accord écrit (texte versionné `Compte.CONSENTEMENT_VERSION`, = celui du serveur) ; REFUS = aucune connexion, l'application se ferme. Puis connexion par le compte Google dans le navigateur (flux serveur de SAWALI, cible `sonde`), retour par `sondereseau://google?code=…`, échange du code contre le JETON de ce téléphone (`ApiCompte`). Sans accord + jeton (`Compte.pret`), ni l'écran, ni la surveillance, ni la tâche de secours ne fonctionnent.
 - **Espace commun** : les mesures partent vers `POST /api/sonde-reseau/communaute/envoi` (jeton) avec type de connexion, opérateur et lieu ; SAWALI les additionne par zone de 2 km × connexion × opérateur (Paramètres → « Sonde réseau — espace commun des téléphones »). Jamais envoyés : nom du téléphone, nom du Wi-Fi, adresse du routeur, heure exacte. La clé de la sonde reste facultative (envoi en plus vers la page du propriétaire).
